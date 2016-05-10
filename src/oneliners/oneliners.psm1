@@ -153,6 +153,117 @@ function get-dotnetversions() {
     return [DotNetVer]::GetVersionFromRegistry()
 }
 
+function reload-module($module) {
+    if (gmo $module) { rmo $module  }
+    ipmo $module -Global
+}
+
+function test-tcp {
+    Param(
+      [Parameter(Mandatory=$True,Position=1)]
+       [string]$ip,
+
+       [Parameter(Mandatory=$True,Position=2)]
+       [int]$port
+    )
+
+    $connection = New-Object System.Net.Sockets.TcpClient($ip, $port)
+    if ($connection.Connected) {
+        Return "Connection Success"
+    }
+    else {
+        Return "Connection Failed"
+    }
+}
+
+function import-state([Parameter(Mandatory=$true)]$file) {
+    if (!(test-path $file)) {
+        return $null
+    }
+    $c = get-content $file | out-string
+    $obj = convertfrom-json $c 
+    if ($obj -eq $null) { throw "failed to read state from file $file" }
+    return $obj
+}
+
+function export-state([Parameter(Mandatory=$true)]$state, [Parameter(Mandatory=$true)]$file) {
+    $state | convertto-json | out-file $file -encoding utf8
+}
+
+
+function Add-DnsAlias {
+    [CmdletBinding()]
+    param ([Parameter(Mandatory=$true)] $from, [Parameter(Mandatory=$true)] $to)
+     
+    $hostlines = @(get-content "c:\Windows\System32\drivers\etc\hosts")
+    $hosts = @{}
+    
+    write-verbose "resolving name '$to'"
+    $r = Resolve-DnsName $to
+    if ($r.Ip4address -ne $null) {
+        $ip = $r.ip4address
+    } elseif ($to -match "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.") {
+        $ip = $to
+    } else {
+        throw "could not resolve name '$to'"
+    }
+    for($l = 0; $l -lt $hostlines.Length; $l++) {
+        $_ = $hostlines[$l]
+        if ($_.Trim().StartsWith("#") -or $_.Trim().length -eq 0) { continue }        
+        $s = $_.Trim().Split(' ')
+        $hosts[$s[1]] = new-object -type pscustomobject -Property @{ alias = $s[1]; ip = $s[0]; line = $l } 
+    }
+    
+    if ($hosts.ContainsKey($from)) {
+        $hosts[$from].ip = $ip
+    } else {
+        $hosts[$from] = new-object -type pscustomobject -Property @{ alias = $from; ip = $ip; line = $hostlines.Length }
+        $hostlines += @("")
+    }
+    
+    write-verbose "adding to etc\hosts: $ip $from"
+    $hostlines[$hosts[$from].line] = "$ip $from"
+    
+    $guid = [guid]::NewGuid().ToString("n")
+    write-verbose "backing up etc\hosts to $env:TEMP\hosts-$guid"
+    copy-item "c:\Windows\System32\drivers\etc\hosts" "$env:TEMP\hosts-$guid"  
+    
+    $hostlines | Out-File "c:\Windows\System32\drivers\etc\hosts" 
+}
+
+function remove-dnsalias([Parameter(Mandatory=$true)] $from) {
+    $hostlines = @(get-content "c:\Windows\System32\drivers\etc\hosts")
+    $hosts = @{}
+    
+    $newlines = @()
+    $found = $false
+    for($l = 0; $l -lt $hostlines.Length; $l++) {
+        $_ = $hostlines[$l]
+        if ($_.Trim().StartsWith("#") -or $_.Trim().length -eq 0) { 
+            $newlines += @($_); 
+            continue 
+        }        
+        $s = $_.Trim().Split(' ')
+        if ($s[1] -ne $from) {
+            $newlines += @($_)            
+        } else {
+            $found = $true
+        }
+    }
+    
+    if (!$found) {
+        write-warning "alias '$from' not found!"
+        return
+    } 
+    
+    $guid = [guid]::NewGuid().ToString("n")
+    write-host "backing up etc\hosts to $env:TEMP\hosts-$guid"
+    copy-item "c:\Windows\System32\drivers\etc\hosts" "$env:TEMP\hosts-$guid"  
+    
+    $newlines | Out-File "c:\Windows\System32\drivers\etc\hosts" 
+    
+}
+
 new-alias tp test-path
 new-alias git-each invoke-giteach
 new-alias gitr git-each
@@ -162,5 +273,7 @@ new-alias pin-totaskbar Install-TaskBarPinnedItem
 new-alias killall stop-allprocesses
 new-alias tee-filter split-output
 new-alias any test-any
+new-alias relmo reload-module
+new-alias tcpping test-tcp
 
 Export-ModuleMember -Function * -Cmdlet * -Alias *
