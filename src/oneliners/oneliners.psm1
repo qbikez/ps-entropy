@@ -199,13 +199,17 @@ function Add-DnsAlias {
     $hosts = @{}
     
     write-verbose "resolving name '$to'"
-    $r = Resolve-DnsName $to
-    if ($r.Ip4address -ne $null) {
-        $ip = $r.ip4address
-    } elseif ($to -match "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.") {
+
+    if ($to -match "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+") {
         $ip = $to
-    } else {
-        throw "could not resolve name '$to'"
+    }
+    else {
+        $r = Resolve-DnsName $to
+        if ($r.Ip4address -ne $null) {
+            $ip = $r.ip4address        
+        } else {
+            throw "could not resolve name '$to'"
+        }
     }
     for($l = 0; $l -lt $hostlines.Length; $l++) {
         $_ = $hostlines[$l]
