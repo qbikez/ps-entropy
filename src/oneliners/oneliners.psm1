@@ -153,10 +153,12 @@ function get-dotnetversions() {
     return [DotNetVer]::GetVersionFromRegistry()
 }
 
+<#
 function reload-module($module) {
     if (gmo $module) { rmo $module  }
     ipmo $module -Global
 }
+#>
 
 function test-tcp {
     Param(
@@ -268,7 +270,7 @@ function remove-dnsalias([Parameter(Mandatory=$true)] $from) {
     
 }
 
-function is-admin() {
+function test-isadmin() {
 # Get the ID and security principal of the current user account
 $myWindowsID=[System.Security.Principal.WindowsIdentity]::GetCurrent()
 $myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
@@ -280,8 +282,37 @@ $adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
 return $myWindowsPrincipal.IsInRole($adminRole)
 }
 
+function Send-Slack {
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$true, ValueFromPipeline=$true)]$Text,
+    [Parameter(Mandatory=$false)]$Channel,
+    [Parameter(Mandatory=$false)]$AsUser
+)
+
+	ipmo psslack
+
+	$cred = get-credentialscached -message "slack username and token" -container "slack"
+	$username = $cred.UserName
+	$token = $cred.GetNetworkCredential().password
+
+	$sendasuser = $AsUser
+	if ($AsUser -eq $null) {
+		$sendasuser = $true
+	}
+
+	if ($Channel -eq $null) {
+		$Channel = "@$env:slackuser"
+		if ($AsUser -eq $null) { $sendasuser = $false }
+	}
+	if ($Channel -eq $null) {
+		$Channel = "@$username"
+		if ($AsUser -eq $null) { $sendasuser = $false }
+	}
 
 
+	Send-SlackMessage -Token $token -Username $username -Text $text -Channel $channel -AsUser:$sendasuser
+}
 
 new-alias tp test-path
 new-alias git-each invoke-giteach
@@ -294,5 +325,6 @@ new-alias tee-filter split-output
 new-alias any test-any
 new-alias relmo reload-module
 new-alias tcpping test-tcp
+new-alias is-admin test-isadmin
 
 Export-ModuleMember -Function * -Cmdlet * -Alias *
