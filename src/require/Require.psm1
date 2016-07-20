@@ -1,13 +1,17 @@
+
+
 function Request-Module(
     [Parameter(Mandatory=$true)]
     $modules, 
     $version = $null,
-    $package = "PS-LegimiTasks",
+    $package = $null,
     [switch][bool] $reload,
     $source = "oneget",
     [switch][bool] $wait = $false
 
 ) {
+    import-module process
+
     foreach($_ in $modules)
     { 
         $mo = gmo $_
@@ -39,12 +43,12 @@ function Request-Module(
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
                         . '$PSScriptRoot\Setup-Helpers.ps1';
-                        write-host 'Ensuring chocolatey is installed'
+                        write-host 'Ensuring chocolatey is installed';
                         ensure-choco;
-                        write-host 'installing chocolatey package $package'
+                        write-host 'installing chocolatey package $package';
                         choco install -y $package;
                         } finally {
-                            if (`$$wait) { Read-Host 'press Enter to close  this window and continue' }
+                            if (`$$wait) { Read-Host 'press Enter to close  this window and continue'; }
                         }
                     ") -wait
 
@@ -55,23 +59,23 @@ function Request-Module(
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
-                        `$ex = `$null                 
+                        `$ex = `$null;              
                         . '$PSScriptRoot\Setup-Helpers.ps1';
-                        write-host 'Ensuring chocolatey is installed'
+                        write-host 'Ensuring chocolatey is installed';
                         ensure-choco;
-                        write-host 'updating chocolatey package $package'
+                        write-host 'updating chocolatey package $package';
                         choco update $package;
                         
                         if (`$$wait) { Read-Host 'press Enter to close  this window and continue' }
                         
                         } catch {
-                            write-error `$_
-                            `$ex = `$_
-                            Read-Host 'someting went wrong. press Enter to close this window and continue' }
-                            throw
+                            write-error `$_;
+                            `$ex = `$_;
+                            if (`$$wait) { Read-Host 'someting went wrong. press Enter to close this window and continue' }
+                            throw;
                         }
                         finally {
-                        }get-
+                        }
                     ") -wait    
                     $mo = gmo $_ -ListAvailable        
                 }
@@ -79,9 +83,13 @@ function Request-Module(
             if ($source -in "oneget","psget","powershellget","psgallery") {
                 write-warning "trying powershellget package manager"
                 if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
+                    import-module PackageManagement
                     Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
                 }
+                import-module powershellget
                 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+                
                 if ($mo -eq $null) {
                     write-host "install-module $_ -verbose"
                     run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose")
