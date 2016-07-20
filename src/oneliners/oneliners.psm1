@@ -289,7 +289,7 @@ param(
     [Parameter(Mandatory=$false)]$Channel,
     [Parameter(Mandatory=$false)]$AsUser
 )
-
+process {
 	ipmo psslack
 
 	$cred = get-credentialscached -message "slack username and token" -container "slack"
@@ -303,6 +303,7 @@ param(
 
 	if ($Channel -eq $null) {
 		$Channel = "@$env:slackuser"
+		write-verbose "setting channel to $channel"
 		if ($AsUser -eq $null) { $sendasuser = $false }
 	}
 	if ($Channel -eq $null) {
@@ -312,6 +313,7 @@ param(
 
 
 	Send-SlackMessage -Token $token -Username $username -Text $text -Channel $channel -AsUser:$sendasuser
+}
 }
 
 new-alias tp test-path
