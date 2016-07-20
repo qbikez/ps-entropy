@@ -132,5 +132,6 @@ function Request-Module(
 }
 
 New-Alias Require-Module Request-Module
+New-Alias req Request-Module
 
 Export-ModuleMember -Function * -Alias *
