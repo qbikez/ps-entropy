@@ -316,6 +316,17 @@ process {
 }
 }
 
+function disable-hyperv {
+    bcdedit /set hypervisorlaunchtype off
+    write-host "hypervisorlaunchtype=off. Reboot to apply:"
+    write-host "shutdown /r /t 0 /f"
+}
+function enable-hyperv {
+    bcdedit /set hypervisorlaunchtype auto
+    write-host "hypervisorlaunchtype=auto. Reboot to apply:"
+    write-host "shutdown /r /t 0 /f"
+}
+
 new-alias tp test-path
 new-alias git-each invoke-giteach
 new-alias gitr git-each
@@ -330,3 +341,4 @@ new-alias tcpping test-tcp
 new-alias is-admin test-isadmin
 
 Export-ModuleMember -Function * -Cmdlet * -Alias *
+
