@@ -9,10 +9,10 @@
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = '.\newtonsoft.json.psm1'
+RootModule = 'newtonsoft.json.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.1'
+ModuleVersion = '1.0.1.1'
 
 # ID used to uniquely identify this module
 GUID = 'b658063c-41d0-49f8-ac21-7b762d9824e9'
@@ -117,6 +117,7 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
+
 
 
 
