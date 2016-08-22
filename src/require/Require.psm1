@@ -21,7 +21,7 @@ function Request-Module(
 
         if (!$loaded) {
             try {
-                ipmo $_ -ErrorAction SilentlyContinue
+                ipmo $_ -ErrorAction SilentlyContinue -Global
                 $mo = gmo $_
                 $loaded = $mo -ne $null
                 $found = $loaded
@@ -135,7 +135,7 @@ function Request-Module(
             throw "requested module $_ version $version, but found $($mo.Version[0])!"
         }
 
-        Import-Module $_ -DisableNameChecking -MinimumVersion $version
+        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global
         }
 }
 
