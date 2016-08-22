@@ -1,6 +1,6 @@
 import-module pester
 if (gmo require) { rmo require }
-import-module require
+import-module $psscriptroot\..\src\require\require.psm1 -verbose
 #import-module "$PSScriptRoot/../third-party/pester"  
 
 
