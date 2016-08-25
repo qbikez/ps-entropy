@@ -7,11 +7,17 @@ function Request-Module(
     $package = $null,
     [switch][bool] $reload,
     $source = "oneget",
-    [switch][bool] $wait = $false
+    [switch][bool] $wait = $false,
+    [Parameter()]
+    [ValidateSet("AllUsers","CurrentUser","Auto")]
+    [string] $scope = "Auto"
 
 ) {
     import-module process
-
+    if ($scope -eq "Auto") {
+        $scope = "CurrentUser"
+        if (test-IsAdmin) { $scope = "AllUsers" }
+    }
     foreach($_ in $modules)
     { 
         $mo = gmo $_
@@ -92,11 +98,25 @@ function Request-Module(
                 
                 if ($mo -eq $null) {
                     write-host "install-module $_ -verbose"
-                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose")
+                    if ($scope -eq "CurrentUser") {
+                        install-module $_ -verbose -scope $scope
+                    } else {
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope")
+                    }
                 }            
                 else {
-                    run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")
-                    update-module $_ -verbose
+                    # remove module to avoid loading multiple versions
+                    rmo $_
+                    if ($scope -eq "CurrentUser") {
+                        try {                            
+                            update-module $_ -verbose
+                        } catch {
+                            # if module was installed as Admin, try to update as admin
+                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")     
+                        }
+                    } else {
+                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")
+                    }
                 }
                 $mo = gmo $_ -ListAvailable    
                 
@@ -105,12 +125,16 @@ function Request-Module(
                     # if the repository has changed, we need to force install 
 
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
-                    write-warning "try again: install-module $_ -verbose -force"
-                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -Force")  
+                    write-warning "trying again: install-module $_ -verbose -force"
+                    if ($scope -eq "CurrentUser") {
+                        install-module $_ -scope $scope -verbose -Force
+                    } else {
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force")
+                    }  
                     $mo = gmo $_ -ListAvailable    
                 }
 
-                if ($mo -eq $null){ 
+                if ($mo -eq $null) { 
                     Write-Warning "failed to install module $_ through oneget"
                     Write-Warning "available modules:"
                     $list = find-module $_
