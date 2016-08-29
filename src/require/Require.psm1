@@ -52,7 +52,7 @@ function Request-Module(
                         }
                     ") -wait
                                         
-                    refreshenv
+                    $env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::Machine)
                     $mo = gmo $_ -ListAvailable
                     # throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
                 }
@@ -79,7 +79,7 @@ function Request-Module(
                         }
                     ") -wait  
                      
-                    refreshenv 
+                    $env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::Machine)
                     $mo = gmo $_ -ListAvailable
                 }
             }
