@@ -22,3 +22,17 @@ Describe "require module test" {
         $m | Should Not benullorempty
     }
 }
+
+
+Describe "require module test" {
+    It "Should load required module from choco" {
+        $module = "pscx"
+        $version = "3.2.0"
+        $package = " pscx"
+
+        if ((gmo $module) -ne $null) { rmo $module }
+        req $module -version $version -source choco -package $package
+        $m = gmo $module
+        $m | Should Not benullorempty
+    }
+}

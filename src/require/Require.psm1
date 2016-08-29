@@ -10,7 +10,7 @@ function Request-Module(
     [switch][bool] $wait = $false
 
 ) {
-    import-module process
+    import-module process -Global
 
     foreach($_ in $modules)
     { 
@@ -42,9 +42,9 @@ function Request-Module(
                 if (!($mo)) {
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
-                        . '$PSScriptRoot\Setup-Helpers.ps1';
+                        . '$PSScriptRoot\functions\helpers.ps1';
                         write-host 'Ensuring chocolatey is installed';
-                        ensure-choco;
+                        _ensure-choco;
                         write-host 'installing chocolatey package $package';
                         choco install -y $package;
                         } finally {
@@ -60,9 +60,9 @@ function Request-Module(
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
-                        . '$PSScriptRoot\Setup-Helpers.ps1';
+                        . '$PSScriptRoot\functions\helpers.ps1';
                         write-host 'Ensuring chocolatey is installed';
-                        ensure-choco;
+                        _ensure-choco;
                         write-host 'updating chocolatey package $package';
                         choco update $package;
                         
@@ -139,7 +139,9 @@ function Request-Module(
         }
 }
 
+
+
 New-Alias Require-Module Request-Module
 New-Alias req Request-Module
 
-Export-ModuleMember -Function * -Alias *
+Export-ModuleMember -Function "Request-Module" -Alias *
