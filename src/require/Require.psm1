@@ -39,7 +39,7 @@ function Request-Module(
         if (!$found) {
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco") {
-                if (!($mo)) {
+                if ($mo -eq $null) {
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
                         . '$PSScriptRoot\functions\helpers.ps1';
@@ -51,11 +51,12 @@ function Request-Module(
                             if (`$$wait) { Read-Host 'press Enter to close  this window and continue'; }
                         }
                     ") -wait
-
-                    throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
+                                        
+                    refreshenv
                     $mo = gmo $_ -ListAvailable
+                    # throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
                 }
-                if ($mo.Version[0] -lt $version) {
+                elseif ($mo.Version[0] -lt $version) {
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
@@ -76,8 +77,10 @@ function Request-Module(
                         }
                         finally {
                         }
-                    ") -wait    
-                    $mo = gmo $_ -ListAvailable        
+                    ") -wait  
+                     
+                    refreshenv 
+                    $mo = gmo $_ -ListAvailable
                 }
             }
             if ($source -in "oneget","psget","powershellget","psgallery") {
