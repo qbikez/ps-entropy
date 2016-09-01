@@ -99,7 +99,7 @@ function Request-Module(
                 }            
                 else {
                     run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")
-                    update-module $_ -verbose
+                    #update-module $_ -verbose
                 }
                 $mo = gmo $_ -ListAvailable    
                 
