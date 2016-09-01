@@ -95,10 +95,10 @@ function Request-Module(
                 
                 if ($mo -eq $null) {
                     write-host "install-module $_ -verbose"
-                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose")
+                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose") -wait
                 }            
                 else {
-                    run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")
+                    run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose") -wait
                     #update-module $_ -verbose
                 }
                 $mo = gmo $_ -ListAvailable    
@@ -109,7 +109,7 @@ function Request-Module(
 
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     write-warning "try again: install-module $_ -verbose -force"
-                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -Force")  
+                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -Force") -wait 
                     $mo = gmo $_ -ListAvailable    
                 }
 
