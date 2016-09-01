@@ -72,7 +72,7 @@ function Request-Module(
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
                         write-host 'updating chocolatey package $package';
-                        choco update $package;
+                        choco update -y $package;
                         
                         if (`$$wait) { Read-Host 'press Enter to close  this window and continue' }
                         
@@ -109,7 +109,7 @@ function Request-Module(
                 }            
                 else {
                     # remove module to avoid loading multiple versions
-                    rmo $_
+                    rmo $_ -erroraction Ignore
                     if ($scope -eq "CurrentUser") {
                         try {                            
                             update-module $_ -verbose -erroraction stop
