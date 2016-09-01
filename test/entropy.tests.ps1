@@ -22,3 +22,20 @@ Describe "require module test" {
         $m | Should Not benullorempty
     }
 }
+
+
+Describe "require module test" {
+    It "Should load required module from choco" {
+        $module = "pscx"
+        $version = "3.2.0"
+        $package = " pscx"
+
+        if ((gmo $module) -ne $null) { rmo $module }
+        req $module -version $version -source choco -package $package
+
+        $env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::Machine) + ";C:\Program Files (x86)\PowerShell Community Extensions\Pscx3" + ";C:\Program Files\PowerShell Community Extensions\Pscx3"
+        
+        $m = gmo $module
+        $m | Should Not benullorempty
+    }
+}

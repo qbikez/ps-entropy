@@ -13,11 +13,12 @@ function Request-Module(
     [string] $scope = "Auto"
 
 ) {
-    import-module process
+    import-module process -Global
     if ($scope -eq "Auto") {
         $scope = "CurrentUser"
         if (test-IsAdmin) { $scope = "AllUsers" }
     }
+
     foreach($_ in $modules)
     { 
         $mo = gmo $_
@@ -45,30 +46,31 @@ function Request-Module(
         if (!$found) {
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco") {
-                if (!($mo)) {
+                if ($mo -eq $null) {
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
-                        . '$PSScriptRoot\Setup-Helpers.ps1';
+                        . '$PSScriptRoot\functions\helpers.ps1';
                         write-host 'Ensuring chocolatey is installed';
-                        ensure-choco;
+                        _ensure-choco;
                         write-host 'installing chocolatey package $package';
                         choco install -y $package;
                         } finally {
                             if (`$$wait) { Read-Host 'press Enter to close  this window and continue'; }
                         }
                     ") -wait
-
-                    throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
+                                        
+                    $env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::Machine)
                     $mo = gmo $_ -ListAvailable
+                    # throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
                 }
-                if ($mo.Version[0] -lt $version) {
+                elseif ($mo.Version[0] -lt $version) {
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
-                        . '$PSScriptRoot\Setup-Helpers.ps1';
+                        . '$PSScriptRoot\functions\helpers.ps1';
                         write-host 'Ensuring chocolatey is installed';
-                        ensure-choco;
+                        _ensure-choco;
                         write-host 'updating chocolatey package $package';
                         choco update $package;
                         
@@ -82,8 +84,10 @@ function Request-Module(
                         }
                         finally {
                         }
-                    ") -wait    
-                    $mo = gmo $_ -ListAvailable        
+                    ") -wait  
+                     
+                    $env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::Machine)
+                    $mo = gmo $_ -ListAvailable
                 }
             }
             if ($source -in "oneget","psget","powershellget","psgallery") {
@@ -94,14 +98,13 @@ function Request-Module(
                 }
                 import-module powershellget
                 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-
                 
                 if ($mo -eq $null) {
                     write-host "install-module $_ -verbose"
                     if ($scope -eq "CurrentUser") {
-                        install-module $_ -verbose -scope $scope
+                        install-module $_ -verbose -scope $scope -ErrorAction stop
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope")
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop")
                     }
                 }            
                 else {
@@ -109,13 +112,13 @@ function Request-Module(
                     rmo $_
                     if ($scope -eq "CurrentUser") {
                         try {                            
-                            update-module $_ -verbose
+                            update-module $_ -verbose -erroraction stop
                         } catch {
                             # if module was installed as Admin, try to update as admin
-                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")     
+                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop")     
                         }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose")
+                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop")
                     }
                 }
                 $mo = gmo $_ -ListAvailable    
@@ -127,9 +130,9 @@ function Request-Module(
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     write-warning "trying again: install-module $_ -verbose -force"
                     if ($scope -eq "CurrentUser") {
-                        install-module $_ -scope $scope -verbose -Force
+                        install-module $_ -scope $scope -verbose -Force -ErrorAction stop
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force")
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop")
                     }  
                     $mo = gmo $_ -ListAvailable    
                 }
@@ -159,11 +162,13 @@ function Request-Module(
             throw "requested module $_ version $version, but found $($mo.Version[0])!"
         }
 
-        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global
+        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global -ErrorAction stop
         }
 }
+
+
 
 New-Alias Require-Module Request-Module
 New-Alias req Request-Module
 
-Export-ModuleMember -Function * -Alias *
+Export-ModuleMember -Function "Request-Module" -Alias *
