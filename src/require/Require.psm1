@@ -7,10 +7,17 @@ function Request-Module(
     $package = $null,
     [switch][bool] $reload,
     $source = "oneget",
-    [switch][bool] $wait = $false
+    [switch][bool] $wait = $false,
+    [Parameter()]
+    [ValidateSet("AllUsers","CurrentUser","Auto")]
+    [string] $scope = "Auto"
 
 ) {
     import-module process -Global
+    if ($scope -eq "Auto") {
+        $scope = "CurrentUser"
+        if (test-IsAdmin) { $scope = "AllUsers" }
+    }
 
     foreach($_ in $modules)
     { 
@@ -91,15 +98,28 @@ function Request-Module(
                 }
                 import-module powershellget
                 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-
                 
                 if ($mo -eq $null) {
                     write-host "install-module $_ -verbose"
-                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose") -wait
+                    if ($scope -eq "CurrentUser") {
+                        install-module $_ -verbose -scope $scope -ErrorAction stop
+                    } else {
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop")
+                    }
                 }            
                 else {
-                    run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose") -wait
-                    #update-module $_ -verbose
+                    # remove module to avoid loading multiple versions
+                    rmo $_
+                    if ($scope -eq "CurrentUser") {
+                        try {                            
+                            update-module $_ -verbose -erroraction stop
+                        } catch {
+                            # if module was installed as Admin, try to update as admin
+                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop")     
+                        }
+                    } else {
+                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop")
+                    }
                 }
                 $mo = gmo $_ -ListAvailable    
                 
@@ -108,12 +128,16 @@ function Request-Module(
                     # if the repository has changed, we need to force install 
 
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
-                    write-warning "try again: install-module $_ -verbose -force"
-                    run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -Force") -wait 
+                    write-warning "trying again: install-module $_ -verbose -force"
+                    if ($scope -eq "CurrentUser") {
+                        install-module $_ -scope $scope -verbose -Force -ErrorAction stop
+                    } else {
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop")
+                    }  
                     $mo = gmo $_ -ListAvailable    
                 }
 
-                if ($mo -eq $null){ 
+                if ($mo -eq $null) { 
                     Write-Warning "failed to install module $_ through oneget"
                     Write-Warning "available modules:"
                     $list = find-module $_
@@ -138,7 +162,7 @@ function Request-Module(
             throw "requested module $_ version $version, but found $($mo.Version[0])!"
         }
 
-        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global
+        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global -ErrorAction stop
         }
 }
 
