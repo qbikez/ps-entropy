@@ -172,7 +172,7 @@ function Request-Module(
 }
 
 
-if ((get-alias Require-Module -ErrorAction ignore) -eq $null) { Require-Module Request-Module }
-if ((get-alias req -ErrorAction ignore) -eq $null) { req Request-Module }
+if ((get-alias Require-Module -ErrorAction ignore) -eq $null) { new-alias Require-Module Request-Module }
+if ((get-alias req -ErrorAction ignore) -eq $null) { new-alias req Request-Module }
 
 Export-ModuleMember -Function "Request-Module" -Alias *
