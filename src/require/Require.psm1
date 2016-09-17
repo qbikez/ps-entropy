@@ -72,7 +72,7 @@ function Request-Module(
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
                         write-host 'updating chocolatey package $package';
-                        choco update $package;
+                        choco update -y $package;
                         
                         if (`$$wait) { Read-Host 'press Enter to close  this window and continue' }
                         
@@ -94,7 +94,12 @@ function Request-Module(
                 write-warning "trying powershellget package manager"
                 if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
                     import-module PackageManagement
-                    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+                    $nuget = get-packageprovider -Name Nuget -force -forcebootstrap
+                    if ($nuget -eq $null) {
+                        write-host "installing nuget package provider"
+                        # this isn't availalbe in the current official release of oneget (?)
+                        install-packageprovider -Name NuGet -Force -MinimumVersion 2.8.5.201 -verbose
+                    } 
                 }
                 import-module powershellget
                 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
@@ -104,21 +109,21 @@ function Request-Module(
                     if ($scope -eq "CurrentUser") {
                         install-module $_ -verbose -scope $scope -ErrorAction stop
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop")
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop") -wait
                     }
                 }            
                 else {
                     # remove module to avoid loading multiple versions
-                    rmo $_
+                    rmo $_ -erroraction Ignore
                     if ($scope -eq "CurrentUser") {
                         try {                            
                             update-module $_ -verbose -erroraction stop
                         } catch {
                             # if module was installed as Admin, try to update as admin
-                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop")     
+                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop") -wait    
                         }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop")
+                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop") -wait
                     }
                 }
                 $mo = gmo $_ -ListAvailable    
@@ -132,7 +137,7 @@ function Request-Module(
                     if ($scope -eq "CurrentUser") {
                         install-module $_ -scope $scope -verbose -Force -ErrorAction stop
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop")
+                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop") -wait
                     }  
                     $mo = gmo $_ -ListAvailable    
                 }
@@ -167,8 +172,7 @@ function Request-Module(
 }
 
 
-
-New-Alias Require-Module Request-Module
-New-Alias req Request-Module
+if ((get-alias Require-Module -ErrorAction ignore) -eq $null) { new-alias Require-Module Request-Module }
+if ((get-alias req -ErrorAction ignore) -eq $null) { new-alias req Request-Module }
 
 Export-ModuleMember -Function "Request-Module" -Alias *
