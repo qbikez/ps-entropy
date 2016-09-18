@@ -1,11 +1,11 @@
-function sanitize-containername([Parameter(Mandatory=$true, ValueFromPipeline=$true)]$container) {
+function _SanitizeContainerName([Parameter(Mandatory=$true, ValueFromPipeline=$true)]$container) {
     return $container.Replace("\","_").Replace("/","_").Replace(":","_")
 }
 
 function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data, [Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
-    $container = sanitize-containername $container
+    $container = _SanitizeContainerName $container
     try {
         if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
     } catch {
@@ -18,7 +18,7 @@ function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data,
 function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
-    $container = sanitize-containername $container
+    $container = _SanitizeContainerName $container
     try {
     if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
     } catch {
@@ -37,7 +37,7 @@ function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandato
 function remove-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
-    $container = sanitize-containername $container
+    $container = _SanitizeContainerName $container
     if ((test-path $cacheDir)) { 
         $path = "$cacheDir\$container.json"
         if (test-path $path) {
