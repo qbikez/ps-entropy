@@ -1,3 +1,7 @@
+
+ipmo cache -ErrorAction Ignore
+ipmo publishmap -ErrorAction Ignore
+
 function invoke-giteach($cmd) {
     gci | ? { $_.psiscontainer } | % { pushd; cd $_; if (tp ".git") { write-host; log-info $_; git $cmd }; popd; }
 }
@@ -327,7 +331,6 @@ function enable-hyperv {
     write-host "shutdown /r /t 0 /f"
 }
 
-ipmo cache -ErrorAction Ignore
 
 function get-syncdir() {
     if (test-path "HKCU:\Software\Microsoft\OneDrive") 
@@ -347,6 +350,16 @@ function get-syncdir() {
     }
 }
 
+function _get-enckey { 
+    [CmdletBinding()]
+    param() 
+    $pass = get-passwordcached -message "Global settings password" -container "global-key" -allowuserui
+    $rfc = new-object System.Security.Cryptography.Rfc2898DeriveBytes $pass,@(1,2,3,4,5,6,7,8),1000            
+    $enckey = $rfc.GetBytes(256/8);
+    #write-verbose "key=$($enckey | convertto-base64) length=$($enckey.length)"
+    return $enckey
+} 
+
 function import-settings {
     [CmdletBinding()]
     param ()
@@ -355,7 +368,6 @@ function import-settings {
         write-warning "couldn't find OneDrive synced folder"
         return
     }
-    ipmo publishmap
     $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable 
     
     
@@ -366,14 +378,17 @@ function import-settings {
     $decrypted = @{}
     foreach($kvp in $settings.GetEnumerator()) {
         if ($kvp.value.startswith("enc:")) {
-             $enckey = get-passwordcached -message "Global settings password" -container "global-key" -secure
-             $enckey = convertfrom-securestring $enckey
-             $enckey = [System.Text.Encoding]::Utf8.GetBytes($enckey) | select -first (256/8)
+            try {
+             $enckey = _get-enckey
              $encvalue = $kvp.value.substring("enc:".length)
-             $secvalue = convertto-securestring $encvalue -Key $enckey
+             $secvalue = convertto-securestring $encvalue -Key $enckey -ErrorAction stop
              $decrypted[$kvp.key] = $secvalue
              #$creds = new-object system.management.automation.pscredential ("dummy",$secvalue)
              #$pass = $creds.getnetworkcredential().password 
+            } catch {
+                write-warning "failed to decode key $($kvp.key): $_"
+                $decrypted[$kvp.key] = $kvp.value
+            }
         }
         else {
             $decrypted[$kvp.key] = $kvp.value
@@ -401,7 +416,6 @@ function export-setting {
         write-warning "couldn't find OneDrive synced folder"
         return
     }
-    ipmo publishmap
     $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable
     if ($settings -eq $null) { $settings = @{} }
     if ($settings[$key] -ne $null) {
@@ -412,9 +426,7 @@ function export-setting {
     }
     write-verbose "storing setting $key=$value at '$syncdir'"
     if ($encrypt) {
-        $enckey = get-passwordcached -message "Global settings password" -container "global-key" -secure
-        $enckey = convertfrom-securestring $enckey
-        $enckey = [System.Text.Encoding]::Utf8.GetBytes($enckey) | select -first (256/8)
+        $enckey = _get-enckey
         $secvalue = convertto-securestring $value -asplaintext -force
         $encvalue = convertfrom-securestring $secvalue -key $enckey
         $settings[$key] = "enc:$encvalue"

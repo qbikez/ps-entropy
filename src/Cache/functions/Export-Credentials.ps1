@@ -42,7 +42,7 @@ function Get-PasswordCached {
 
 function Get-CredentialsCached {
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)]$container, $message, $reset = $false) 
+param([Parameter(Mandatory=$true)]$container, $message, [switch][bool]$reset = $false) 
 
     $cred = $null
     $cacheDir = "pscredentials"
