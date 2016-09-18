@@ -350,6 +350,10 @@ function get-syncdir() {
     }
 }
 
+function set-globalpassword {
+    Get-CredentialsCached -message "Global settings password" -reset -container "global-key"
+}
+
 function _get-enckey { 
     [CmdletBinding()]
     param() 
@@ -359,6 +363,16 @@ function _get-enckey {
     #write-verbose "key=$($enckey | convertto-base64) length=$($enckey.length)"
     return $enckey
 } 
+
+function new-credentials(
+    [Parameter(Mandatory=$true)]$username, 
+    [Parameter(Mandatory=$true)][securestring]$password) {
+        return New-Object 'system.management.automation.pscredential' $username,$password
+    }
+
+function convertto-plaintext([Parameter(Mandatory=$true)][securestring]$password) {
+    return (new-credentials $="dummy" $password).GetNetworkCredential().password
+}
 
 function import-settings {
     [CmdletBinding()]
