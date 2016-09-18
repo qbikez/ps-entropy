@@ -356,21 +356,46 @@ function import-settings {
         return
     }
     ipmo publishmap
-    $global:settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable 
+    $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable 
     
     
-    if ($global:settings -eq $null) {
-        $global:settings = @{}
+    if ($settings -eq $null) {
+        $settings = @{}
     }
 
-    write-verbose "imported $($global:settings.Count) settings from '$syncdir'"
+    $decrypted = @{}
+    foreach($kvp in $settings.GetEnumerator()) {
+        if ($kvp.value.startswith("enc:")) {
+             $enckey = get-passwordcached -message "Global settings password" -container "global-key" -secure
+             $enckey = convertfrom-securestring $enckey
+             $enckey = [System.Text.Encoding]::Utf8.GetBytes($enckey) | select -first (256/8)
+             $encvalue = $kvp.value.substring("enc:".length)
+             $secvalue = convertto-securestring $encvalue -Key $enckey
+             $decrypted[$kvp.key] = $secvalue
+             #$creds = new-object system.management.automation.pscredential ("dummy",$secvalue)
+             #$pass = $creds.getnetworkcredential().password 
+        }
+        else {
+            $decrypted[$kvp.key] = $kvp.value
+        }
+    }
 
-    return $global:settings
+    $settings = $decrypted
+    write-verbose "imported $($settings.Count) settings from '$syncdir'"
+
+    $global:settings = $settings
+
+    return $settings
 }
 
 function export-setting {
     [CmdletBinding()]
-    param([Parameter(Mandatory=$true)] $key, [Parameter(Mandatory=$true)] $value, [Switch][bool]$force) 
+    param(
+        [Parameter(Mandatory=$true)] $key, 
+        [Parameter(Mandatory=$true)] $value, 
+        [Switch][bool]$force,
+        [Alias("secure")][Switch][bool]$encrypt
+        ) 
     $syncdir = get-syncdir
     if ($syncdir -eq $null) {
         write-warning "couldn't find OneDrive synced folder"
@@ -386,8 +411,17 @@ function export-setting {
         }
     }
     write-verbose "storing setting $key=$value at '$syncdir'"
-    $settings[$key] = $value
-    export-cache -data $settings -container "user-settings"  -dir $syncdir
+    if ($encrypt) {
+        $enckey = get-passwordcached -message "Global settings password" -container "global-key" -secure
+        $enckey = convertfrom-securestring $enckey
+        $enckey = [System.Text.Encoding]::Utf8.GetBytes($enckey) | select -first (256/8)
+        $secvalue = convertto-securestring $value -asplaintext -force
+        $encvalue = convertfrom-securestring $secvalue -key $enckey
+        $settings[$key] = "enc:$encvalue"
+    } else {
+        $settings[$key] = "$value"
+    }
+    export-cache -data $settings -container "user-settings" -dir $syncdir
  
     import-settings
 }
@@ -476,6 +510,7 @@ function idea {
                 }                 
                 else {
                     push $idea -stackname $stackname
+                    $idea = peek -stackname $stackname
                 }
                 push "idea: $($idea.value)"
             } else {
