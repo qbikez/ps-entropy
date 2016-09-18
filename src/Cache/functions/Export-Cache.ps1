@@ -6,7 +6,11 @@ function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data,
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
     $container = sanitize-containername $container
-    if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir }
+    try {
+        if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
+    } catch {
+        throw "could not find or create cache directory '$cachedir'"
+    }
     $path = "$cacheDir\$container.json"
     $data | ConvertTo-Json | Out-File $path
 }
@@ -15,7 +19,11 @@ function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandato
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
     $container = sanitize-containername $container
-    if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir }
+    try {
+    if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
+    } catch {
+        throw "could not find or create cache directory '$cachedir'"
+    }
     $path = "$cacheDir\$container.json"
     
     $data = $null

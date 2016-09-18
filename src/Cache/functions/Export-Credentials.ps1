@@ -1,11 +1,11 @@
 
-function export-credentials($cacheDir, $contaier, $cred) {
+function export-credentials($contaier, $cred, $cacheDir) {
     $result = New-Object -TypeName pscustomobject -Property @{ Password = $cred.Password | ConvertFrom-SecureString; Username = $cred.UserName }
-    export-cache $cacheDir $container $result
+    export-cache $result $container -dir $cacheDir
 }
 
-function import-credentials($cacheDir, $contaier) {
-    $lastcred = import-cache $cacheDir $container
+function import-credentials($container, $cacheDir) {
+    $lastcred = import-cache $container -dir $cacheDir
     if ($lastcred -ne $null) {
         $password = $lastcred.Password | ConvertTo-SecureString
         $username = $lastcred.Username
@@ -17,11 +17,11 @@ function import-credentials($cacheDir, $contaier) {
 
 function Get-PasswordCached {
     [CmdletBinding()]
-    param([Parameter(Mandatory=$true)]$container, $message, [switch][bool] $allowuserUI) 
+    param([Parameter(Mandatory=$true)]$container, $message, [switch][bool] $allowuserUI, [switch][bool]$secure) 
         
     $cacheDir = "pscredentials"
         try {
-            $cred = import-credentials $cacheDir $container
+            $cred = import-credentials $container -dir $cacheDir
             if ($cred -eq $null) { 
                 if ($allowuserUI) {
                       $cred = Get-CredentialsCached -container $container -message $message
@@ -29,7 +29,11 @@ function Get-PasswordCached {
                     return $null 
                 }
             }
-            return $cred.GetNetworkCredential().Password
+            if ($secure) {
+                return $cred.password
+            } else {
+                return $cred.GetNetworkCredential().Password
+            }
         } catch {            
             throw
             return $null
@@ -44,7 +48,7 @@ param([Parameter(Mandatory=$true)]$container, $message, $reset = $false)
     $cacheDir = "pscredentials"
     if (!$reset) {
         try {
-        $cred = import-credentials $cacheDir $container
+        $cred = import-credentials $container -dir $cacheDir
         } catch {
         }
     }
@@ -56,11 +60,11 @@ param([Parameter(Mandatory=$true)]$container, $message, $reset = $false)
         $cred = Get-Credential -Message $message
     }
     
-    export-credentials $cacheDir $container $cred
+    export-credentials $container $cred -dir $cacheDir
     return $cred
 }
 
 function Remove-CredentialsCached($container) {
     $cacheDir = "pscredentials"
-    remove-cache $cacheDir $container
+    remove-cache $container -dir $cacheDir
 }
