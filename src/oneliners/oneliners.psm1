@@ -347,6 +347,51 @@ function get-syncdir() {
     }
 }
 
+function import-settings {
+    [CmdletBinding()]
+    param ()
+    $syncdir = get-syncdir
+    if ($syncdir -eq $null) {
+        write-warning "couldn't find OneDrive synced folder"
+        return
+    }
+    ipmo publishmap
+    $global:settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable 
+    
+    
+    if ($global:settings -eq $null) {
+        $global:settings = @{}
+    }
+
+    write-verbose "imported $($global:settings.Count) settings from '$syncdir'"
+
+    return $global:settings
+}
+
+function export-setting {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)] $key, [Parameter(Mandatory=$true)] $value, [Switch][bool]$force) 
+    $syncdir = get-syncdir
+    if ($syncdir -eq $null) {
+        write-warning "couldn't find OneDrive synced folder"
+        return
+    }
+    ipmo publishmap
+    $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable
+    if ($settings -eq $null) { $settings = @{} }
+    if ($settings[$key] -ne $null) {
+        if (!$force) {
+            write-warning "a setting with key $key already exists. Use -Force to override"
+            return
+        }
+    }
+    write-verbose "storing setting $key=$value at '$syncdir'"
+    $settings[$key] = $value
+    export-cache -data $settings -container "user-settings"  -dir $syncdir
+ 
+    import-settings
+}
+
 function push {
     param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default") 
 
@@ -484,9 +529,21 @@ function pop-idea {
 
 
 function todo {
-    param([Parameter(mandatory=$false)]$what)
+    param(
+        [Parameter(mandatory=$true,ParameterSetName="add",Position=1)]
+        $idea,                 
+        [Parameter(mandatory=$true,ParameterSetName="search")]
+        $search,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$go,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [Parameter(mandatory=$false,ParameterSetName="list")]
+        [switch][bool]$done,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$remove
+        )
 
-    idea $what -stackname "todo"
+    idea @PSBoundParameters -stackname "todo"
 }
 
 new-alias stack get-stack
