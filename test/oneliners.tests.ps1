@@ -1,4 +1,4 @@
-req oneliners -reload
+import-module $psscriptroot\..\src\oneliners\oneliners.psm1 -verbose
 
 Describe "stack unit tests" {
     It "pushed item should be on top of the stack" {
