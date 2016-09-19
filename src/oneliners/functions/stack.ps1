@@ -1,6 +1,6 @@
 
 function add-stackitem {
-    param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default") 
+    param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default", [switch][bool]$get) 
 
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
     
@@ -15,12 +15,16 @@ function add-stackitem {
     $item = new-object -type pscustomobject -Property $props
     $stack += @($item)
     export-cache -data $stack -container "stack.$stackname"  -dir (get-syncdir)
-    peek -stackname $stackname
+    if ($get) {
+        return peek -stackname $stackname
+    } else {
+        get-stack -stackname $stackname
+    }
 }
 new-alias push add-stackitem
 
 function remove-stackitem {
-    param($stackname = "default") 
+    param($stackname = "default",[switch][bool]$get) 
     
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
     if ($stack -eq $null -or $stack.length -eq 0) { return $null }
@@ -32,7 +36,11 @@ function remove-stackitem {
     } else {
         export-cache -data $stack -container "stack.$stackname" -dir (get-syncdir)
     }
-    return $item
+    if ($get) {
+        return $item
+    } else {
+        return get-stack $stackname
+    }
 }
 new-alias pop remove-stackitem
 
@@ -81,6 +89,8 @@ function stack {
         [switch][bool]$done,
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [switch][bool]$remove,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$list,
         [Alias("container")][Alias("s")]
         [Parameter(mandatory=$false)]$stackname = "default"
     ) 
@@ -94,7 +104,11 @@ function stack {
         switch($PSCmdlet.ParameterSetName) {
             { $_ -eq "add" -and !$done -and !$remove } { 
                 if ($what -eq $null) {
-                    $command = "show"
+                    if ($list) {
+                        $command = "list"
+                    } else {
+                        $command = "show"
+                    }
                 }
                 else {
                     $command = "push" 
