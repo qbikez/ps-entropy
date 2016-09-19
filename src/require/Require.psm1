@@ -21,9 +21,11 @@ function Request-Module(
 
     foreach($_ in $modules)
     { 
+        $currentversion = $null
         $mo = gmo $_
         $loaded = $mo -ne $null
         $found = $loaded
+        if ($loaded) { $currentversion = $mo.Version[0] }
         if ($loaded -and !$reload -and ($mo.Version[0] -ge $version -or $version -eq $null)) { return }
 
         if (!$loaded) {
@@ -44,6 +46,7 @@ function Request-Module(
         }
 
         if (!$found) {
+            if ($currentversion -ne $null) { write-host "current version of module $_ is $currentversion" }
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco") {
                 if ($mo -eq $null) {
