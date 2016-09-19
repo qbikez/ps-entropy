@@ -38,7 +38,7 @@ function new-credentials(
         return New-Object 'system.management.automation.pscredential' $username,$password
     }
 
-function convertto-plaintext([Parameter(Mandatory=$true)][securestring]$password) {
+function convertto-plaintext([Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=1)][securestring]$password) {
     return (new-credentials $="dummy" $password).GetNetworkCredential().password
 }
 
