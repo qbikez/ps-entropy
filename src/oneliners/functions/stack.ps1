@@ -1,5 +1,5 @@
 
-function push {
+function add-stackitem {
     param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default") 
 
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
@@ -17,8 +17,9 @@ function push {
     export-cache -data $stack -container "stack.$stackname"  -dir (get-syncdir)
     peek -stackname $stackname
 }
+new-alias push add-stackitem
 
-function pop {
+function remove-stackitem {
     param($stackname = "default") 
     
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
@@ -33,8 +34,9 @@ function pop {
     }
     return $item
 }
+new-alias pop remove-stackitem
 
-function peek {
+function get-stackitem {
     param($stackname = "default") 
 
     $stack = @(import-cache -container "stack.$stackname" -dir (get-syncdir))
@@ -42,6 +44,7 @@ function peek {
     $item = $stack[$stack.length-1]
     return $item
 }
+new-alias peek get-stackitem
 
 function get-stack {
     param($stackname = "default") 
@@ -59,51 +62,95 @@ function remove-stack {
     }    
 }
 
-function idea {
-    [Cmdletbinding(DefaultParameterSetName="list")]
+function stack {
+    [Cmdletbinding(DefaultParameterSetName="add")]
     param(
-        [Parameter(mandatory=$true,ParameterSetName="add",Position=1)]
-        $idea,                 
+        [Parameter(mandatory=$false,ParameterSetName="cmd",Position=1)]
+        [ValidateSet("push","pop","show","search","remove","done","list","showall")]
+        $cmd,
+        [Parameter(mandatory=$false,ParameterSetName="add",Position=1)]
+        [Parameter(mandatory=$false,ParameterSetName="cmd",Position=2)]
+        $what,                 
         [Parameter(mandatory=$true,ParameterSetName="search")]
         $search,
         [Parameter(mandatory=$false,ParameterSetName="add")]
+        [Parameter(mandatory=$false,ParameterSetName="cmd")]
         [switch][bool]$go,
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [Parameter(mandatory=$false,ParameterSetName="list")]
         [switch][bool]$done,
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [switch][bool]$remove,
-        [Parameter(mandatory=$false)]$stackname = "ideas"
+        [Alias("container")][Alias("s")]
+        [Parameter(mandatory=$false)]$stackname = "default"
     ) 
-    switch($PSCmdlet.ParameterSetName) {
-        { $_ -eq "add" -and !$done -and !$remove } {             
+
+    $command = $cmd
+    if ($what -ne $null -and $what -in @("push","pop","show","search","remove","done","list","showall")) {
+        $command = $what
+        $what = $null        
+    }    
+    if ($command -eq $null) {
+        switch($PSCmdlet.ParameterSetName) {
+            { $_ -eq "add" -and !$done -and !$remove } { 
+                if ($what -eq $null) {
+                    $command = "show"
+                }
+                else {
+                    $command = "push" 
+                }
+            }
+            "list" { $command = "show" }
+            { $_ -eq "search" -or ($_ -eq "add" -and ($done -or $remove)) } 
+            {
+                if ($done) { $command = "done" }
+                elseif ($remove) { $command = "remove" }
+                else { $command = "search" }
+            }
+
+        }    
+    }
+
+    switch($command) {
+        "push" {             
             if ($go) {
-                if ($idea.gettype() -eq [int]) {
-                    $found = idea -search $idea
+                if ($what.gettype() -eq [int]) {
+                    $found = idea -search $what
                     if ($found -eq $null) { return }
-                    $idea = $found
+                    $what = $found
                 }                 
                 else {
-                    push $idea -stackname $stackname
-                    $idea = peek -stackname $stackname
+                    push $what -stackname $stackname
+                    $what = peek -stackname $stackname
                 }
-                push "idea: $($idea.value)"
+                push "idea: $($what.value)"
             } else {
-                push $idea -stackname $stackname
+                push $what -stackname $stackname
             }
         }
-        "list" {
+        "pop" {
+            pop -stackname $stackname
+        }
+        "show" {
             if ($done) {
-                stack -stackname "$stackname.done"    
+                get-stack -stackname "$stackname.done"    
             } else {
-                stack -stackname $stackname    
+                get-stack -stackname $stackname    
             }
         }
-        { $_ -eq "search" `
-            -or ($_ -eq "add" -and ($done -or $remove)) } {
-            $ideas = stack -stackname $stackname  
-            if ($search -eq $null) { $search = $idea } 
-            $found = $ideas | ? { (($search.gettype() -eq [int]) -and $_.no -eq $search) -or $_.value -match "$search" }
+        { $_ -in "list","showall" } {
+            $files = get-childitem (get-syncdir) -Filter "stack.*"
+            $stacks = $files | % {
+                if ($_.name -match "stack\.(.*)\.json" -and $_.name -notmatch "\.done\.json") {
+                    return $matches[1]
+                }
+            }
+            return $stacks
+        }
+        { $_ -in @("search","remove","done") } {
+            $whats = get-stack -stackname $stackname  
+            if ($search -eq $null) { $search = $what } 
+            $found = $whats | ? { (($search.gettype() -eq [int]) -and $_.no -eq $search) -or $_.value -match "$search" }
             if ($found -eq $null) {
                 if ($search.gettype() -eq [int]) { write-warning "no idea with id $search found" }
                 else { write-warning "no idea matching '$search' found" }
@@ -126,7 +173,7 @@ function idea {
                 push $found[0] -stackname "$stackname.done"
             }
             if ($done -or $remove) {
-                $newstack = $ideas | ? { $_.no -ne $found[0].no }
+                $newstack = $whats | ? { $_.no -ne $found[0].no }
                 export-cache -data $newstack -container "stack.$stackname" -dir (get-syncdir)            
             }
         }
@@ -141,7 +188,7 @@ function pop-idea {
 function todo {
     param(
         [Parameter(mandatory=$true,ParameterSetName="add",Position=1)]
-        $idea,                 
+        $what,                 
         [Parameter(mandatory=$true,ParameterSetName="search")]
         $search,
         [Parameter(mandatory=$false,ParameterSetName="add")]
@@ -153,7 +200,24 @@ function todo {
         [switch][bool]$remove
         )
 
-    idea @PSBoundParameters -stackname "todo"
+    stack @PSBoundParameters -stackname "todo"
 }
 
-new-alias stack get-stack
+
+function idea {
+    param(
+        [Parameter(mandatory=$true,ParameterSetName="add",Position=1)]
+        $what,                 
+        [Parameter(mandatory=$true,ParameterSetName="search")]
+        $search,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$go,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [Parameter(mandatory=$false,ParameterSetName="list")]
+        [switch][bool]$done,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$remove
+        )
+
+    stack @PSBoundParameters -stackname "ideas"
+}

@@ -84,7 +84,7 @@ Describe "stack command" {
         $s.length | should be 2
     }
 
-    It "'stack push item' should push" {       
+    It "'stack psuh item' should push" {       
         remove-stack -stackname "test" -confirm:$false
         stack push "item1" -stackname "test"
         stack push "item2" -stackname "test"
@@ -106,5 +106,19 @@ Describe "stack command" {
         $s = stack -stackname "test"
         $s | should not BeNullOrEmpty
         $s.length | should be 2
+    }
+    It "'stack search' should find items" {       
+        remove-stack -stackname "test" -confirm:$false
+        push "itemA 1" -stackname "test"
+        push "itemB 2" -stackname "test"
+        push "itemA 3" -stackname "test"
+
+        $f = stack -search "itemA" -stackname "test"
+
+        $f | should not BeNullOrEmpty
+        $f.length | should be 2
+
+        $f2 = stack -search "itemA" -stackname "test"
+        $f2.length | should be 2
     }
 }
