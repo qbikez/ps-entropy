@@ -22,7 +22,7 @@ function set-globalpassword {
     Get-CredentialsCached -message "Global settings password" -reset -container "global-key"
 }
 
-function _get-enckey { 
+function _getenckey { 
     [CmdletBinding()]
     param() 
     $pass = get-passwordcached -message "Global settings password" -container "global-key" -allowuserui
@@ -61,7 +61,7 @@ function import-settings {
     foreach($kvp in $settings.GetEnumerator()) {
         if ($kvp.value.startswith("enc:")) {
             try {
-             $enckey = _get-enckey
+             $enckey = _getenckey
              $encvalue = $kvp.value.substring("enc:".length)
              $secvalue = convertto-securestring $encvalue -Key $enckey -ErrorAction stop
              $decrypted[$kvp.key] = $secvalue
@@ -108,7 +108,7 @@ function export-setting {
     }
     write-verbose "storing setting $key=$value at '$syncdir'"
     if ($encrypt) {
-        $enckey = _get-enckey
+        $enckey = _getenckey
         $secvalue = convertto-securestring $value -asplaintext -force
         $encvalue = convertfrom-securestring $secvalue -key $enckey
         $settings[$key] = "enc:$encvalue"
