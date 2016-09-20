@@ -1,16 +1,31 @@
 
 function add-stackitem {
-    param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default", [switch][bool]$get) 
+    param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default", [switch][bool]$get, [Alias("est")]$estimatedTime) 
 
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
     
     if ($stack -eq $null) { $stack = @(); $no = 1 }
     else { $stack = @($stack); $no = $stack.Length + 1 }
 
+    if ($estimatedTime -ne $null) {
+       if ($estimatedTime -match "([0-9]+)p") {
+           $estimatedTime = [timespan]::FromMinutes([int]::Parse($matches[1]) * 30)
+       }   
+       elseif ($estimatedTime -match "([0-9]+)(m|min)") {
+           $estimatedTime = [timespan]::FromMinutes([int]::Parse($matches[1]))
+       }
+       else {
+           $estimatedTime = [timespan]::Parse($estimatedTime)
+       }
+    } else {
+        $estimatedTime = [timespan]::FromMinutes(5)
+    }
+    
     $props = [ordered]@{
         no = $no
         value = $what
         ts = get-date -Format "yyyy-MM-dd HH:mm:ss"
+        est = $estimatedTime.ToString()
     }
     $item = new-object -type pscustomobject -Property $props
     $stack += @($item)
@@ -36,11 +51,19 @@ function remove-stackitem {
     } else {
         export-cache -data $stack -container "stack.$stackname" -dir (get-syncdir)
     }
+
     if ($get) {
-        return $item
+        Write-Output $item
     } else {
-        return get-stack $stackname
+        Write-Output get-stack $stackname
     }
+
+    $started = [datetime]::parse($item.ts)
+    $now = get-date
+    $elapsed = $now - $started
+    write-host ""
+    write-host "task $($item.value) took: $elapsed (estimated: $($item.est) overtime: $($elapsed - [timespan]::Parse($item.est))"
+
 }
 new-alias pop remove-stackitem
 
@@ -92,7 +115,10 @@ function stack {
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [switch][bool]$list,
         [Alias("container")][Alias("s")]
-        [Parameter(mandatory=$false)]$stackname = "default"
+        [Parameter(mandatory=$false)]$stackname = "default",
+        [Alias("est")]
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        $estimatedTime = $null
     ) 
 
     $command = $cmd
@@ -134,16 +160,16 @@ function stack {
                     $what = $found
                 }                 
                 else {
-                    push $what -stackname $stackname
+                    push $what -stackname $stackname -estimatedTime $estimatedTime
                     $what = peek -stackname $stackname
                 }
                 push "idea: $($what.value)"
             } else {
-                push $what -stackname $stackname
+                push $what -stackname $stackname -estimatedTime $estimatedTime
             }
         }
         "pop" {
-            pop -stackname $stackname
+            pop -stackname $stackname         
         }
         "show" {
             if ($done) {
