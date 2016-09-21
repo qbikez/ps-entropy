@@ -12,7 +12,7 @@ function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data,
         throw "could not find or create cache directory '$cachedir'"
     }
     $path = "$cacheDir\$container.json"
-    $data | ConvertTo-Json | Out-File $path
+    $data | ConvertTo-Json | Out-File $path -Encoding utf8
 }
 
 function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
@@ -28,7 +28,7 @@ function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandato
     
     $data = $null
     if (test-path $path) {
-        $data = Get-Content $path | out-String | ConvertFrom-Json
+        $data = Get-Content $path -Encoding UTF8 | out-String | ConvertFrom-Json
     }
 
     return $data
