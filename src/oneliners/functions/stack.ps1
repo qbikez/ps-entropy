@@ -78,10 +78,14 @@ function get-stackitem {
 new-alias peek get-stackitem
 
 function get-stack {
-    param($stackname = "default") 
+    param($stackname = "default", [switch][bool] $short) 
 
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
-    return $stack
+    if ($short) {
+        return $stack | select no,value,ts,est
+    } else {
+        return $stack
+    }
 }
 
 
@@ -140,7 +144,13 @@ function stack {
                     }
                 }
                 else {
-                    $command = "push" 
+                    if ($what.gettype() -eq [int] -or $what -match "^#[0-9]+$") {
+                        $command = "search"
+                        $search = $what
+                    }    
+                    else {                        
+                        $command = "show"
+                    } 
                 }
             }
             "list" { $command = "show" }
@@ -166,7 +176,7 @@ function stack {
                     push $what -stackname $stackname -estimatedTime $estimatedTime
                     $what = peek -stackname $stackname
                 }
-                push "idea: $($what.value)"
+                push "idea #$($what.no): $($what.value)"
             } else {
                 push $what -stackname $stackname -estimatedTime $estimatedTime
             }
@@ -199,8 +209,12 @@ function stack {
         }
         { $_ -in @("search","remove","done") } {
             $whats = get-stack -stackname $stackname  
-            if ($search -eq $null) { $search = $what } 
-            $found = $whats | ? { (($search.gettype() -eq [int]) -and $_.no -eq $search) -or $_.value -match "$search" }
+            if ($search -eq $null) { $search = $what }
+
+            $id = $null
+            if ($search.gettype() -eq [int]) { $id = $search }
+            if ($search -match "^\#([0-9]+)$") { $id = [int]::parse($matches[1]) }
+            $found = $whats | ? { ($id -ne $null -and $_.no -eq $id) -or ($id -eq $null -and $_.value -match "$search") }
             if ($found -eq $null) {
                 if ($search.gettype() -eq [int]) { write-warning "no idea with id $search found" }
                 else { write-warning "no idea matching '$search' found" }
@@ -221,6 +235,10 @@ function stack {
             
             if ($done) {
                 push $found[0] -stackname "$stackname.done"
+                $cur = peek
+                if ($cur -ne $null -and $cur -match "idea \#$($found[0].no):") {
+                    pop
+                }
             }
             if ($done -or $remove) {
                 $newstack = $whats | ? { $_.no -ne $found[0].no }
