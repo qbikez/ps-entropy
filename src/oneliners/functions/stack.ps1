@@ -14,7 +14,7 @@ function add-stackitem {
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
     
     if ($stack -eq $null) { $stack = @(); $no = 1 }
-    else { $stack = @($stack); $no =  ($s | measure -Property "no" -Maximum).maximum + 1 }
+    else { $stack = @($stack); $no =  (($stack | measure -Property "no" -Maximum).maximum) + 1 }
 
     if ($estimatedTime -ne $null) {
        if ($estimatedTime -match "([0-9]+)p") {
