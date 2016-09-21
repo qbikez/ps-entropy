@@ -112,9 +112,12 @@ function stack {
         [switch][bool]$done,
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [switch][bool]$remove,
+        [Alias("l")]
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [switch][bool]$list,
-        [Alias("container")][Alias("s")]
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$all,
+        [Alias("container")][Alias("n")][Alias("name")]
         [Parameter(mandatory=$false)]$stackname = "default",
         [Alias("est")]
         [Parameter(mandatory=$false,ParameterSetName="add")]
@@ -130,7 +133,7 @@ function stack {
         switch($PSCmdlet.ParameterSetName) {
             { $_ -eq "add" -and !$done -and !$remove } { 
                 if ($what -eq $null) {
-                    if ($list) {
+                    if ($list -or $all) {
                         $command = "list"
                     } else {
                         $command = "show"
@@ -182,10 +185,17 @@ function stack {
             $files = get-childitem (get-syncdir) -Filter "stack.*"
             $stacks = $files | % {
                 if ($_.name -match "stack\.(.*)\.json" -and $_.name -notmatch "\.done\.json") {
-                    return $matches[1]
+                        return $matches[1]
                 }
             }
+            if ($all) {
+                foreach ($s in $stacks) {
+                    write-host "== $s =="
+                    get-stack $s | format-table | out-string | write-host
+                }
+            } else {
             return $stacks
+            }
         }
         { $_ -in @("search","remove","done") } {
             $whats = get-stack -stackname $stackname  
