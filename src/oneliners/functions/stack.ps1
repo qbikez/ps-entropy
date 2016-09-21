@@ -368,3 +368,6 @@ function stack {
     $bound = $PSBoundParameters
     invoke-stackcmd @bound
 }
+
+New-Alias "st" stack
+New-Alias "stk" stack
