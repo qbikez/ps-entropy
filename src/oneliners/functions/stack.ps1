@@ -1,11 +1,20 @@
-
+﻿
 function add-stackitem {
-    param([Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, $stackname = "default", [switch][bool]$get, [Alias("est")]$estimatedTime) 
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, 
+        $stackname = "default", 
+        [switch][bool] $get, 
+        [Alias("est")] $estimatedTime,
+        [alias("c")]
+        [switch][bool] $asChild,
+        [alias("i")]
+        [switch][bool]$interruption,
+        $level = 0) 
 
     $stack = import-cache -container "stack.$stackname" -dir (get-syncdir)
     
     if ($stack -eq $null) { $stack = @(); $no = 1 }
-    else { $stack = @($stack); $no = $stack.Length + 1 }
+    else { $stack = @($stack); $no =  ($s | measure -Property "no" -Maximum).maximum + 1 }
 
     if ($estimatedTime -ne $null) {
        if ($estimatedTime -match "([0-9]+)p") {
@@ -20,12 +29,34 @@ function add-stackitem {
     } else {
         $estimatedTime = [timespan]::FromMinutes(5)
     }
-    
+
+    $parent = $null
+    if ($asChild) {
+        $parent = peek -stackname $stackname
+    }
+
+    if ($parent -ne $null) {
+        $plev = $parent.level 
+        if ($plev -eq $null) { $plev = 0 }
+        $level = $plev + 1
+    }
+
+    if ($interruption) {
+        $level = 0
+        $what = "▼ " + $what
+    }
+
+    if ($level -gt 0 -and $what.gettype() -eq [string]) {
+        $what = ('┗' + [string]$what)
+        $what = $what.Padleft($what.length + $level)
+    }
+
     $props = [ordered]@{
         no = $no
         value = $what
         ts = get-date -Format "yyyy-MM-dd HH:mm:ss"
         est = $estimatedTime.ToString()
+        level = $level
     }
     $item = new-object -type pscustomobject -Property $props
     $stack += @($item)
@@ -33,7 +64,7 @@ function add-stackitem {
     if ($get) {
         return peek -stackname $stackname
     } else {
-        get-stack -stackname $stackname
+        invoke-stackcmd -cmd show -stackname $stackname
     }
 }
 new-alias push add-stackitem
@@ -55,7 +86,7 @@ function remove-stackitem {
     if ($get) {
         Write-Output $item
     } else {
-        Write-Output get-stack $stackname
+        Write-host (get-stack $stackname | format-table | out-string)
     }
 
     $started = [datetime]::parse($item.ts)
@@ -97,7 +128,7 @@ function remove-stack {
     }    
 }
 
-function stack {
+function invoke-stackcmd {
     [Cmdletbinding(DefaultParameterSetName="add")]
     param(
         [Parameter(mandatory=$false,ParameterSetName="cmd",Position=1)]
@@ -121,11 +152,15 @@ function stack {
         [switch][bool]$list,
         [Parameter(mandatory=$false,ParameterSetName="add")]
         [switch][bool]$all,
-        [Alias("container")][Alias("n")][Alias("name")]
+        [Alias("n")][Alias("name")]
         [Parameter(mandatory=$false)]$stackname = "default",
         [Alias("est")]
         [Parameter(mandatory=$false,ParameterSetName="add")]
-        $estimatedTime = $null
+        $estimatedTime = $null,
+        [alias("c")]
+        [switch][bool]$asChild,
+        [alias("i")]
+        [switch][bool]$interruption
     ) 
 
     $command = $cmd
@@ -149,7 +184,7 @@ function stack {
                         $search = $what
                     }    
                     else {                        
-                        $command = "show"
+                        $command = "push"
                     } 
                 }
             }
@@ -173,12 +208,12 @@ function stack {
                     $what = $found
                 }                 
                 else {
-                    push $what -stackname $stackname -estimatedTime $estimatedTime
+                    push $what -stackname $stackname -estimatedTime $estimatedTime -asChild:$aschild -interruption:$interruption
                     $what = peek -stackname $stackname
                 }
-                push "idea #$($what.no): $($what.value)"
+                push "idea #$($what.no): $($what.value)" -asChild:$aschild -interruption:$interruption
             } else {
-                push $what -stackname $stackname -estimatedTime $estimatedTime
+                push $what -stackname $stackname -estimatedTime $estimatedTime -asChild:$aschild -interruption:$interruption
             }
         }
         "pop" {
@@ -186,9 +221,9 @@ function stack {
         }
         "show" {
             if ($done) {
-                get-stack -stackname "$stackname.done"    
+                get-stack -stackname "$stackname.done" | format-table | out-string | write-host
             } else {
-                get-stack -stackname $stackname    
+                get-stack -stackname $stackname | format-table | out-string | write-host   
             }
         }
         { $_ -in "list","showall" } {
@@ -288,4 +323,43 @@ function idea {
         )
 
     stack @PSBoundParameters -stackname "ideas"
+}
+
+
+function stack {
+    [Cmdletbinding(DefaultParameterSetName="add")]
+    param(
+        [Parameter(mandatory=$false,ParameterSetName="cmd",Position=1)]
+        [ValidateSet("push","pop","show","search","remove","done","list","showall")]
+        $cmd,
+        [Parameter(mandatory=$false,ParameterSetName="add",Position=1)]
+        [Parameter(mandatory=$false,ParameterSetName="cmd",Position=2)]
+        $what,                 
+        [Parameter(mandatory=$true,ParameterSetName="search")]
+        $search,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [Parameter(mandatory=$false,ParameterSetName="cmd")]
+        [switch][bool]$go,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [Parameter(mandatory=$false,ParameterSetName="list")]
+        [switch][bool]$done,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$remove,
+        [Alias("l")]
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$list,
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        [switch][bool]$all,
+        [Alias("n")][Alias("name")]
+        [Parameter(mandatory=$false)]$stackname = "default",
+        [Alias("est")]
+        [Parameter(mandatory=$false,ParameterSetName="add")]
+        $estimatedTime = $null,
+        [alias("c")]
+        [switch][bool]$asChild,
+        [alias("i")]
+        [switch][bool]$interruption
+    )
+    $bound = $PSBoundParameters
+    invoke-stackcmd @bound
 }
