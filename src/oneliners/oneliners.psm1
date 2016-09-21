@@ -338,6 +338,20 @@ function enable-hyperv {
     write-host "shutdown /r /t 0 /f"
 }
 
+function grep {
+    param($regex)
+
+    begin {
+    }
+
+    process {
+        $_ | ? { $_ -match $regex }
+    }
+
+    end {        
+    }
+
+}
 
 
 new-alias tp test-path
