@@ -160,9 +160,11 @@ function invoke-stackcmd {
         [alias("c")]
         [switch][bool]$asChild,
         [alias("i")]
-        [switch][bool]$interruption
+        [switch][bool]$interruption,
+        [switch][bool]$full
     ) 
 
+    $pipelinemode = $PSCmdlet.MyInvocation.PipelineLength -gt 1
     $command = $cmd
     if ($what -ne $null -and $what -in @("push","pop","show","search","remove","done","list","showall")) {
         $command = $what
@@ -220,11 +222,13 @@ function invoke-stackcmd {
             pop -stackname $stackname         
         }
         "show" {
+            $short = !$full -and !$pipelinemode
             if ($done) {
-                get-stack -stackname "$stackname.done" | format-table | out-string | write-host
+                $stack = get-stack -stackname "$stackname.done" -short:$short
             } else {
-                get-stack -stackname $stackname | format-table | out-string | write-host   
+                $stack = get-stack -stackname $stackname -short:$short   
             }
+            return $stack
         }
         { $_ -in "list","showall" } {
             $files = get-childitem (get-syncdir) -Filter "stack.*"
@@ -358,7 +362,8 @@ function stack {
         [alias("c")]
         [switch][bool]$asChild,
         [alias("i")]
-        [switch][bool]$interruption
+        [switch][bool]$interruption,
+        [switch][bool]$full
     )
     $bound = $PSBoundParameters
     invoke-stackcmd @bound
