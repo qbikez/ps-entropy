@@ -312,7 +312,7 @@ process {
 		$sendasuser = $true
 	}
 
-	if ($Channel -eq $null) {
+	if ($Channel -eq $null -and $env:slackuser -ne $null) {
 		$Channel = "@$env:slackuser"
 		write-verbose "setting channel to $channel"
 		if ($AsUser -eq $null) { $sendasuser = $false }
@@ -366,6 +366,7 @@ new-alias any test-any
 new-alias relmo reload-module
 new-alias tcpping test-tcp
 new-alias is-admin test-isadmin
+new-alias slack send-slack
 
 Export-ModuleMember -Function * -Cmdlet * -Alias *
 
