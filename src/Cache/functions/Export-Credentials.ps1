@@ -1,17 +1,17 @@
 
-function export-credentials([Parameter(Mandatory=$true)]$container, $cred, [Alias("dir")]$cacheDir) {
+function export-credentials([Parameter(Mandatory=$true)]$container, $cred, [Alias("dir")]$cacheDir = "pscredentials") {
     $pass = $null
-    if ($cred.password -ne $null) { 
+    if (![string]::isnullorempty($cred.Password)) { 
         $pass = $cred.Password | ConvertFrom-SecureString
      }
     $result = New-Object -TypeName pscustomobject -Property @{ Password = $pass; Username = $cred.UserName }
     export-cache $result -container $container -dir $cacheDir
 }
 
-function import-credentials([Parameter(Mandatory=$true)] $container, [Alias("dir")]$cacheDir) {
+function import-credentials([Parameter(Mandatory=$true)] $container, [Alias("dir")]$cacheDir = "pscredentials") {
     $lastcred = import-cache $container -dir $cacheDir
     if ($lastcred -ne $null) {
-        if ($lastcred.Password -ne $null) {
+        if (![string]::isnullorempty($lastcred.Password)) {
             $password = $lastcred.Password | ConvertTo-SecureString
             $username = $lastcred.Username
             $cred = New-Object System.Management.Automation.PsCredential $username,$password
