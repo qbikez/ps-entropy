@@ -1,15 +1,21 @@
 
 function export-credentials([Parameter(Mandatory=$true)]$container, $cred, [Alias("dir")]$cacheDir) {
-    $result = New-Object -TypeName pscustomobject -Property @{ Password = $cred.Password | ConvertFrom-SecureString; Username = $cred.UserName }
-    export-cache $result $container -dir $cacheDir
+    $pass = $null
+    if ($cred.password -ne $null) { 
+        $pass = $cred.Password | ConvertFrom-SecureString
+     }
+    $result = New-Object -TypeName pscustomobject -Property @{ Password = $pass; Username = $cred.UserName }
+    export-cache $result -container $container -dir $cacheDir
 }
 
-function import-credentials($container, [Alias("dir")]$cacheDir) {
+function import-credentials([Parameter(Mandatory=$true)] $container, [Alias("dir")]$cacheDir) {
     $lastcred = import-cache $container -dir $cacheDir
     if ($lastcred -ne $null) {
-        $password = $lastcred.Password | ConvertTo-SecureString
-        $username = $lastcred.Username
-        $cred = New-Object System.Management.Automation.PsCredential $username,$password
+        if ($lastcred.Password -ne $null) {
+            $password = $lastcred.Password | ConvertTo-SecureString
+            $username = $lastcred.Username
+            $cred = New-Object System.Management.Automation.PsCredential $username,$password
+        }
     }
 
     return $cred
@@ -57,7 +63,12 @@ param([Parameter(Mandatory=$true)]$container, $message, [switch][bool]$reset = $
         if ($message -eq $null) {
             $message = "Please provide credentials for '$container'"
         }
-        $cred = Get-Credential -Message $message
+        if ($global:promptpreference -ne 'SilentlyContinue') {
+            $cred = Get-Credential -Message $message
+        }
+        else {
+            return $null
+        }
     }
     
     export-credentials $container $cred -dir $cacheDir
