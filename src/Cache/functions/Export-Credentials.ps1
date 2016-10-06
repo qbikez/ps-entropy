@@ -1,10 +1,10 @@
 
-function export-credentials($contaier, $cred, $cacheDir) {
+function export-credentials([Parameter(Mandatory=$true)]$container, $cred, [Alias("dir")]$cacheDir) {
     $result = New-Object -TypeName pscustomobject -Property @{ Password = $cred.Password | ConvertFrom-SecureString; Username = $cred.UserName }
     export-cache $result $container -dir $cacheDir
 }
 
-function import-credentials($container, $cacheDir) {
+function import-credentials($container, [Alias("dir")]$cacheDir) {
     $lastcred = import-cache $container -dir $cacheDir
     if ($lastcred -ne $null) {
         $password = $lastcred.Password | ConvertTo-SecureString
