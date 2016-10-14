@@ -94,6 +94,7 @@ function remove-stackitem {
     $elapsed = $now - $started
     write-host ""
     write-host "task $($item.value) took: $elapsed (estimated: $($item.est) overtime: $($elapsed - [timespan]::Parse($item.est))"
+    write-host ""
 
 }
 new-alias pop remove-stackitem
@@ -188,6 +189,9 @@ function invoke-stackcmd {
                     else {                        
                         $command = "push"
                     } 
+                    if ($go) {
+                        $command = "push"
+                    }
                 }
             }
             "list" { $command = "show" }
@@ -205,7 +209,7 @@ function invoke-stackcmd {
         "push" {             
             if ($go) {
                 if ($what.gettype() -eq [int]) {
-                    $found = idea -search $what
+                    $found = stack -stackname $stackname -search $what
                     if ($found -eq $null) { return }
                     $what = $found
                 }                 
@@ -213,7 +217,7 @@ function invoke-stackcmd {
                     push $what -stackname $stackname -estimatedTime $estimatedTime -asChild:$aschild -interruption:$interruption
                     $what = peek -stackname $stackname
                 }
-                push "idea #$($what.no): $($what.value)" -asChild:$aschild -interruption:$interruption
+                push "$stackname #$($what.no): $($what.value)" -asChild:$aschild -interruption:$interruption
             } else {
                 push $what -stackname $stackname -estimatedTime $estimatedTime -asChild:$aschild -interruption:$interruption
             }
