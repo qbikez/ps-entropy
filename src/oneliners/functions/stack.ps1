@@ -51,14 +51,20 @@ function add-stackitem {
         $what = $what.Padleft($what.length + $level)
     }
 
-    $props = [ordered]@{
-        no = $no
-        value = $what
-        ts = get-date -Format "yyyy-MM-dd HH:mm:ss"
-        est = $estimatedTime.ToString()
-        level = $level
+    if ($what.no -ne $null -and $what.value -ne $null) {
+        $item = $what
     }
-    $item = new-object -type pscustomobject -Property $props
+    else {
+        $props = [ordered]@{
+            no = $no
+            value = $what
+            ts = get-date -Format "yyyy-MM-dd HH:mm:ss"
+            est = $estimatedTime.ToString()
+            level = $level
+        }
+        $item = new-object -type pscustomobject -Property $props
+    }
+    
     $stack += @($item)
     export-cache -data $stack -container "stack.$stackname"  -dir (get-syncdir)
     if ($get) {
@@ -67,7 +73,7 @@ function add-stackitem {
         invoke-stackcmd -cmd show -stackname $stackname
     }
 }
-new-alias push add-stackitem
+
 
 function remove-stackitem {
     param($stackname = "default",[switch][bool]$get) 
@@ -97,7 +103,7 @@ function remove-stackitem {
     write-host ""
 
 }
-new-alias pop remove-stackitem
+
 
 function get-stackitem {
     param($stackname = "default") 
@@ -107,7 +113,7 @@ function get-stackitem {
     $item = $stack[$stack.length-1]
     return $item
 }
-new-alias peek get-stackitem
+
 
 function get-stack {
     param($stackname = "default", [switch][bool] $short) 
@@ -133,7 +139,7 @@ function invoke-stackcmd {
     [Cmdletbinding(DefaultParameterSetName="add")]
     param(
         [Parameter(mandatory=$false,ParameterSetName="cmd",Position=1)]
-        [ValidateSet("push","pop","show","search","remove","done","list","showall")]
+        [ValidateSet("push","pop","show","search","remove","done","list","showall","move")]
         $cmd,
         [Parameter(mandatory=$false,ParameterSetName="add",Position=1)]
         [Parameter(mandatory=$false,ParameterSetName="cmd",Position=2)]
@@ -162,9 +168,14 @@ function invoke-stackcmd {
         [switch][bool]$asChild,
         [alias("i")]
         [switch][bool]$interruption,
-        [switch][bool]$full
+        [switch][bool]$full,
+        [Parameter(mandatory=$false,ParameterSetName="cmd")]
+        $to,
+        [Parameter(ValueFromRemainingArguments)]
+        $remaining
     ) 
-
+    $bound = $PSBoundParameters
+    $a = $args
     $pipelinemode = $PSCmdlet.MyInvocation.PipelineLength -gt 1
     $command = $cmd
     if ($what -ne $null -and $what -in @("push","pop","show","search","remove","done","list","showall")) {
@@ -201,7 +212,6 @@ function invoke-stackcmd {
                 elseif ($remove) { $command = "remove" }
                 else { $command = "search" }
             }
-
         }    
     }
 
@@ -251,6 +261,7 @@ function invoke-stackcmd {
             }
         }
         { $_ -in @("search","remove","done") } {
+            if ($_ -eq "remove") { $remove = $true }
             $whats = get-stack -stackname $stackname  
             if ($search -eq $null) { $search = $what }
 
@@ -259,8 +270,8 @@ function invoke-stackcmd {
             if ($search -match "^\#([0-9]+)$") { $id = [int]::parse($matches[1]) }
             $found = $whats | ? { ($id -ne $null -and $_.no -eq $id) -or ($id -eq $null -and $_.value -match "$search") }
             if ($found -eq $null) {
-                if ($search.gettype() -eq [int]) { write-warning "no idea with id $search found" }
-                else { write-warning "no idea matching '$search' found" }
+                if ($search.gettype() -eq [int]) { write-warning "no item with id $search found on stack '$stackname'" }
+                else { write-warning "no item matching '$search' found on stack '$stackname'" }
                 return
             }
             $found = @($found) 
@@ -270,17 +281,26 @@ function invoke-stackcmd {
             }
 
             if ($found.Length -gt 1) {
-                write-warning "more than one idea matching '$search' found:"
+                write-warning "more than one item matching '$search' found:"
                 $found | format-table | out-string | write-host
                 return
             }                        
-            write-verbose "found matching idea: $found" 
+            write-verbose "found matching item: $found" 
             
             if ($done) {
                 push $found[0] -stackname "$stackname.done"
+
+                # remove if found on default stack
                 $cur = peek
-                if ($cur -ne $null -and $cur -match "idea \#$($found[0].no):") {
-                    pop
+                if ($cur -ne $null -and $cur -match "$stackname \#$($found[0].no):") {
+                    pop 
+                }
+
+                # remove if the task is copied from other stack
+                if ($found[0].value -match "^([a-zA-Z]+) (\#\d+):") {
+                    $otherstack = $matches[1]
+                    $id = $matches[2]
+                    stack -stackname $otherstack "$id" -remove 
                 }
             }
             if ($done -or $remove) {
@@ -288,7 +308,15 @@ function invoke-stackcmd {
                 export-cache -data $newstack -container "stack.$stackname" -dir (get-syncdir)            
             }
         }
+        "move" {
+            if ($to -eq $null) { throw "Missing -to argument" }
+            $it = invoke-stackcmd -cmd search -stackname $stackname -what $what
+            if ($it -eq $null) { throw "item matching '$what' not found" }
+            invoke-stackcmd -cmd push -what $it -stackname $to 
+            invoke-stackcmd -cmd remove -what $it.no -stackname $stackname
+        }
     }    
+   
 }
 
 function pop-idea {
@@ -338,7 +366,7 @@ function stack {
     [Cmdletbinding(DefaultParameterSetName="add")]
     param(
         [Parameter(mandatory=$false,ParameterSetName="cmd",Position=1)]
-        [ValidateSet("push","pop","show","search","remove","done","list","showall")]
+        [ValidateSet("push","pop","show","search","remove","done","list","showall","move")]
         $cmd,
         [Parameter(mandatory=$false,ParameterSetName="add",Position=1)]
         [Parameter(mandatory=$false,ParameterSetName="cmd",Position=2)]
@@ -367,11 +395,15 @@ function stack {
         [switch][bool]$asChild,
         [alias("i")]
         [switch][bool]$interruption,
-        [switch][bool]$full
+        [switch][bool]$full,
+        $to         
     )
     $bound = $PSBoundParameters
     invoke-stackcmd @bound
 }
 
-New-Alias "st" stack
-New-Alias "stk" stack
+New-Alias "st" stack -Force
+New-Alias "stk" stack -Force
+new-alias push add-stackitem -force
+new-alias pop remove-stackitem -force
+new-alias peek get-stackitem -Force
