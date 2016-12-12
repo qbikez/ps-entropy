@@ -53,6 +53,7 @@ function add-stackitem {
 
     if ($what.no -ne $null -and $what.value -ne $null) {
         $item = $what
+        $item.no = $no
     }
     else {
         $props = [ordered]@{
@@ -99,7 +100,7 @@ function remove-stackitem {
     $now = get-date
     $elapsed = $now - $started
     write-host ""
-    write-host "task $($item.value) took: $elapsed (estimated: $($item.est) overtime: $($elapsed - [timespan]::Parse($item.est))"
+    write-host "task $($item.value) took: $elapsed (estimated: $($item.est) overtime: $($elapsed - [timespan]::Parse($item.est)))"
     write-host ""
 
 }
@@ -169,6 +170,7 @@ function invoke-stackcmd {
         [alias("i")]
         [switch][bool]$interruption,
         [switch][bool]$full,
+        [Alias("moveto")]
         [Parameter(mandatory=$false,ParameterSetName="cmd")]
         $to,
         [Parameter(ValueFromRemainingArguments)]
@@ -206,11 +208,13 @@ function invoke-stackcmd {
                 }
             }
             "list" { $command = "show" }
-            { $_ -eq "search" -or ($_ -eq "add" -and ($done -or $remove)) } 
-            {
+            { $_ -eq "search" -or ($_ -eq "add" -and ($done -or $remove)) } {
                 if ($done) { $command = "done" }
                 elseif ($remove) { $command = "remove" }
                 else { $command = "search" }
+            }
+            default {
+                if ($to -ne $null) { $command = "move" }
             }
         }    
     }
@@ -266,6 +270,7 @@ function invoke-stackcmd {
             if ($search -eq $null) { $search = $what }
 
             $id = $null
+            if ($search.gettype() -eq [double]) { $search = [int]$search }
             if ($search.gettype() -eq [int]) { $id = $search }
             if ($search -match "^\#([0-9]+)$") { $id = [int]::parse($matches[1]) }
             $found = $whats | ? { ($id -ne $null -and $_.no -eq $id) -or ($id -eq $null -and $_.value -match "$search") }
@@ -288,32 +293,47 @@ function invoke-stackcmd {
             write-verbose "found matching item: $found" 
             
             if ($done) {
-                push $found[0] -stackname "$stackname.done"
+                $oldid = $found[0].no               
+                
+                $item = $found[0]
+                $started = [datetime]::parse($item.ts)
+                $now = get-date
+                $elapsed = $now - $started
+                
+                write-host ""
+                write-host "task $($found[0].value) took: $elapsed (estimated: $($item.est) overtime: $($elapsed - [timespan]::Parse($item.est)))"
+                write-host ""
+                 
+                $cur = stack -stackname "default" -search "$stackname \#$oldid" -WarningAction SilentlyContinue
+
+                $null = push $found[0] -stackname "$stackname.done" 
 
                 # remove if found on default stack
-                $cur = peek
-                if ($cur -ne $null -and $cur -match "$stackname \#$($found[0].no):") {
-                    pop 
+                if ($cur -ne $null -and $cur -match "$stackname \#$($oldid)") {
+                    $null = stack -stackname "default" "#$($cur.no)" -remove
                 }
 
                 # remove if the task is copied from other stack
                 if ($found[0].value -match "^([a-zA-Z]+) (\#\d+):") {
                     $otherstack = $matches[1]
                     $id = $matches[2]
-                    stack -stackname $otherstack "$id" -remove 
+                    $null = stack -stackname $otherstack "$id" -remove 
                 }
             }
             if ($done -or $remove) {
                 $newstack = $whats | ? { $_.no -ne $found[0].no }
                 export-cache -data $newstack -container "stack.$stackname" -dir (get-syncdir)            
+                invoke-stackcmd show -stackname $stackname
             }
         }
         "move" {
             if ($to -eq $null) { throw "Missing -to argument" }
             $it = invoke-stackcmd -cmd search -stackname $stackname -what $what
             if ($it -eq $null) { throw "item matching '$what' not found" }
+            if ($it.length -gt 1) { throw "more than one item matching '$what' found" }
+            $no = $it.no
             invoke-stackcmd -cmd push -what $it -stackname $to 
-            invoke-stackcmd -cmd remove -what $it.no -stackname $stackname
+            invoke-stackcmd -cmd remove -what $no -stackname $stackname
         }
     }    
    
@@ -396,6 +416,7 @@ function stack {
         [alias("i")]
         [switch][bool]$interruption,
         [switch][bool]$full,
+        [Alias("moveto")]
         $to         
     )
     $bound = $PSBoundParameters
