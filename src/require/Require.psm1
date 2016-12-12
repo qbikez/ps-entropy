@@ -50,6 +50,7 @@ function Request-Module(
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco") {
                 if ($mo -eq $null) {
+                    # ensure choco is installed, then install package
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
                         . '$PSScriptRoot\functions\helpers.ps1';
@@ -68,6 +69,7 @@ function Request-Module(
                 }
                 elseif ($mo.Version[0] -lt $version) {
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
+                    # ensure choco is installed, then upgrade package
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
@@ -108,7 +110,7 @@ function Request-Module(
                 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
                 
                 if ($mo -eq $null) {
-                    write-host "install-module $_ -verbose"
+                    write-warning "install-module $_ -verbose"
                     if ($scope -eq "CurrentUser") {
                         if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
                             install-module $_ -verbose -scope $scope -ErrorAction stop -AllowClobber
@@ -125,19 +127,26 @@ function Request-Module(
                 }            
                 else {
                     # remove module to avoid loading multiple versions
+                    write-warning "update-module $_ -verbose scope:$scope"                    
                     rmo $_ -erroraction Ignore
+                    $toupdate = $_
                     if ($scope -eq "CurrentUser") {
-                        try {                            
-                            update-module $_ -verbose -erroraction stop
+                        try {             
+                            if (((get-command update-module).Parameters.AllowClobber) -ne $null) {    
+                                update-module $toupdate -verbose -erroraction stop
+                            } else {
+                                update-module $toupdate -verbose -erroraction stop
+                            }
                         } catch {
+                            write-warning "need to update module as admin"
                             # if module was installed as Admin, try to update as admin
-                            run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop") -wait    
+                            run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait    
                         }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "update-module $_ -verbose -ErrorAction stop") -wait
+                        run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait
                     }
                 }
-                $mo = gmo $_ -ListAvailable    
+                $mo = gmo $_ -ListAvailable | select -first 1   
                 
                 if ($mo -ne $null -and $mo.Version[0] -lt $version) {
                     # if module is already installed, oneget will try to update from same repositoty
