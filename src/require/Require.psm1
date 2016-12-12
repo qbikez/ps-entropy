@@ -75,7 +75,7 @@ function Request-Module(
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
                         write-host 'updating chocolatey package $package';
-                        choco update -y $package;
+                        choco upgrade -y $package;
                         
                         if (`$$wait) { Read-Host 'press Enter to close  this window and continue' }
                         
@@ -110,9 +110,17 @@ function Request-Module(
                 if ($mo -eq $null) {
                     write-host "install-module $_ -verbose"
                     if ($scope -eq "CurrentUser") {
-                        install-module $_ -verbose -scope $scope -ErrorAction stop
+                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                            install-module $_ -verbose -scope $scope -ErrorAction stop -AllowClobber
+                        } else {
+                            install-module $_ -verbose -scope $scope -ErrorAction stop
+                        }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop") -wait
+                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop -AllowClobber") -wait
+                        } else {
+                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop") -wait
+                        }
                     }
                 }            
                 else {
@@ -138,9 +146,18 @@ function Request-Module(
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     write-warning "trying again: install-module $_ -verbose -force"
                     if ($scope -eq "CurrentUser") {
-                        install-module $_ -scope $scope -verbose -Force -ErrorAction stop
+                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                            install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber
+                        }
+                        else {
+                            install-module $_ -scope $scope -verbose -Force -ErrorAction stop
+                        }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop") -wait
+                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) { 
+                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber") -wait
+                        } else {
+                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop") -wait
+                        }
                     }  
                     $mo = gmo $_ -ListAvailable    
                 }
