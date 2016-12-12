@@ -39,3 +39,5 @@ Describe "require module test" {
         $m | Should Not benullorempty
     }
 }
+
+new-alias slack send-slack -force

@@ -149,11 +149,12 @@ function Request-Module(
                 $mo = gmo $_ -ListAvailable | select -first 1   
                 
                 if ($mo -ne $null -and $mo.Version[0] -lt $version) {
+                    # ups, update-module did not succeed?
                     # if module is already installed, oneget will try to update from same repositoty
                     # if the repository has changed, we need to force install 
 
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
-                    write-warning "trying again: install-module $_ -verbose -force"
+                    write-warning "trying again: install-module $_ -verbose -force -scope $scope"
                     if ($scope -eq "CurrentUser") {
                         if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
                             install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber
@@ -161,7 +162,7 @@ function Request-Module(
                         else {
                             install-module $_ -scope $scope -verbose -Force -ErrorAction stop
                         }
-                    } else {
+                    } else {                        
                         if (((get-command install-module).Parameters.AllowClobber) -ne $null) { 
                             run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber") -wait
                         } else {
