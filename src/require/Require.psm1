@@ -48,8 +48,13 @@ function Request-Module(
         if (!$found) {
             if ($currentversion -ne $null) { write-host "current version of module $_ is $currentversion" }
 			write-warning "module $_ version >= $version not found. installing from $source"
-            if ($source -eq "choco") {
+            if ($source -eq "choco" -or $source.startswith("choco:")) {
                 if ($mo -eq $null) {
+					$cmd = "invoke choco install -y $package -verbose"
+					if ($source.startswith("choco:")) {
+						$customsource = $source.substring("choco:".length)
+						$cmd = "invoke choco install -y $package -source $customsource -verbose"
+					}
                     # ensure choco is installed, then install package
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
@@ -57,7 +62,7 @@ function Request-Module(
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
                         write-host 'installing chocolatey package $package';
-                        choco install -y $package;
+                        $cmd;
                         } finally {
                             if (`$$wait) { Read-Host 'press Enter to close  this window and continue'; }
                         }
@@ -70,6 +75,11 @@ function Request-Module(
                 elseif ($mo.Version[0] -lt $version) {
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     # ensure choco is installed, then upgrade package
+                    $cmd = "invoke choco upgrade -y $package -verbose"
+                    if ($source.startswith("choco:")) {
+						$customsource = $source.substring("choco:".length)
+						$cmd = "invoke choco upgrade -y $package -source $customsource -verbose"
+					}
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
@@ -77,7 +87,7 @@ function Request-Module(
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
                         write-host 'updating chocolatey package $package';
-                        choco upgrade -y $package;
+                        $cmd;
                         
                         if (`$$wait) { Read-Host 'press Enter to close  this window and continue' }
                         
