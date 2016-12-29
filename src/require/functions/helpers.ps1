@@ -35,6 +35,9 @@ function install-chocolatey ($version = $null) {
 ######## chocolatey helpers
 $global:installed = $null
 
+function test-choco {
+    test-command "choco"
+}
 
 function test-command([string] $cmd) {
     return Get-Command $cmd -ErrorAction Ignore
@@ -44,4 +47,25 @@ function _ensure-choco() {
     if (!( test-command "choco")) {
         install-chocolatey 
     }
+}
+
+function refresh-modulepath {
+ $curpath = $env:PSModulePath
+ 
+ $paths = @($curpath.split(";"))
+ $paths = $paths | select -Unique
+
+ $p = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::User)
+ if ($p -ne $null) {
+    $toadd = $p.Split(";") | select -Unique | ? { $_ -cnotin $paths }        
+    $paths = @($toadd) + $paths
+ }
+ 
+ $p = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::machine)
+ if ($p -ne $null) {
+     $toadd = $p.Split(";") | select -Unique | ? { $_ -cnotin $paths }        
+     $paths = @($toadd) + $paths
+}
+
+ $env:PSModulePath = [string]::Join(";", $paths)
 }
