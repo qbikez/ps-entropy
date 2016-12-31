@@ -1,5 +1,4 @@
-
-
+                        
 function Request-Module(
     [Parameter(Mandatory=$true)]
     $modules, 
@@ -46,6 +45,8 @@ function Request-Module(
         }
 
         if (!$found) {
+            . "$PSScriptRoot\functions\helpers.ps1";
+
             if ($currentversion -ne $null) { write-host "current version of module $_ is $currentversion" }
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco" -or $source.startswith("choco:")) {
