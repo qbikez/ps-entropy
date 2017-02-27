@@ -51,15 +51,17 @@ function Request-Module(
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco" -or $source.startswith("choco:")) {
                 if ($mo -eq $null) {
-					$cmd = "invoke choco install -y $package -verbose"
+					$cmd = "Process\invoke choco install -y $package -verbose"
 					if ($source.startswith("choco:")) {
 						$customsource = $source.substring("choco:".length)
-						$cmd = "invoke choco install -y $package -source $customsource -verbose"
+						$cmd = "Process\invoke choco install -y $package -source $customsource -verbose"
 					}
                     # ensure choco is installed, then install package
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
                         . '$PSScriptRoot\functions\helpers.ps1';
+                        ipmo Require
+                        req Process
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
                         write-host 'installing chocolatey package $package';
@@ -77,14 +79,16 @@ function Request-Module(
                 elseif ($mo.Version[0] -lt $version) {
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
                     # ensure choco is installed, then upgrade package
-                    $cmd = "invoke choco upgrade -y $package -verbose"
+                    $cmd = "Process\invoke choco upgrade -y $package -verbose"
                     if ($source.startswith("choco:")) {
 						$customsource = $source.substring("choco:".length)
-						$cmd = "invoke choco upgrade -y $package -source $customsource -verbose"
+						$cmd = "Process\invoke choco upgrade -y $package -source $customsource -verbose"
 					}
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
+                        ipmo Require
+                        req Process
                         . '$PSScriptRoot\functions\helpers.ps1';
                         write-host 'Ensuring chocolatey is installed';
                         _ensure-choco;
