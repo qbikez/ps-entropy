@@ -56,9 +56,11 @@ function Request-Module(
 						$customsource = $source.substring("choco:".length)
 						$cmd = "Process\invoke choco install -y $package -source $customsource -verbose"
 					}
+                    $processModulePath = split-path -parent (gmo Process).path
                     # ensure choco is installed, then install package
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
+                           `$env:PSModulePath = ""`$env:PSModulePath;$processModulePath""
                         . '$PSScriptRoot\functions\helpers.ps1';
                         ipmo Require
                         req Process
@@ -84,9 +86,12 @@ function Request-Module(
 						$customsource = $source.substring("choco:".length)
 						$cmd = "Process\invoke choco upgrade -y $package -source $customsource -verbose"
 					}
+                    $processModulePath = split-path -parent (gmo Process).path
+           
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
+                        `$env:PSModulePath = ""`$env:PSModulePath;$processModulePath""
                         ipmo Require
                         req Process
                         . '$PSScriptRoot\functions\helpers.ps1';
