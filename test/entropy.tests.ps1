@@ -38,6 +38,22 @@ Describe "require module test" {
         $m = gmo $module
         $m | Should Not benullorempty
     }
+    It "Should try to upgrade module from choco" {
+        $module = "pscx"
+        $version = "99.99.99"
+        $package = " pscx"
+
+        if ((gmo $module) -ne $null) { rmo $module }
+        try {
+            $o = req $module -version $version -source choco -package $package -ErrorAction Stop
+        } catch {
+            $msg = $_.Exception.Message
+            if ($msg -notmatch "requested module pscx version $version, but found") {
+                throw
+            }
+        }
+        # ok, at least we tried
+    }
 }
 
 new-alias slack send-slack -force

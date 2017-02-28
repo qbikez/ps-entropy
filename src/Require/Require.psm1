@@ -72,7 +72,8 @@ function Request-Module(
                             if (`$$wait) { Read-Host 'press Enter to close  this window and continue'; }
                         }
                     ") -wait
-                                        
+                    if ($LASTEXITCODE -ne 0) { write-error "choco install failed" }
+      
                     #refresh PSModulePath
                     refresh-modulepath 
                     $mo = gmo $_ -ListAvailable
@@ -111,7 +112,8 @@ function Request-Module(
                         finally {
                         }
                     ") -wait  
-                     
+                    if ($LASTEXITCODE -ne 0) { write-error "choco upgrade failed" }
+
                     refresh-modulepath 
                     $mo = gmo $_ -ListAvailable
                 }
@@ -141,8 +143,10 @@ function Request-Module(
                     } else {
                         if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
                             run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop -AllowClobber") -wait
+                            if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }
                         } else {
                             run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop") -wait
+                            if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }
                         }
                     }
                 }            
@@ -162,9 +166,11 @@ function Request-Module(
                             write-warning "need to update module as admin"
                             # if module was installed as Admin, try to update as admin
                             run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait    
+                            if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
                         }
                     } else {
                         run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait
+                        if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
                     }
                 }
                 $mo = gmo $_ -ListAvailable | select -first 1   
@@ -186,8 +192,10 @@ function Request-Module(
                     } else {                        
                         if (((get-command install-module).Parameters.AllowClobber) -ne $null) { 
                             run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber") -wait
+                            if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }
                         } else {
                             run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop") -wait
+                            if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }
                         }
                     }  
                     $mo = gmo $_ -ListAvailable    
