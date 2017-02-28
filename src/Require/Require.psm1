@@ -60,7 +60,7 @@ function Request-Module(
                     # ensure choco is installed, then install package
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {
-                           `$env:PSModulePath = ""`$env:PSModulePath;$processModulePath""
+                           `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
                         . '$PSScriptRoot\functions\helpers.ps1';
                         ipmo Require
                         req Process
@@ -92,7 +92,7 @@ function Request-Module(
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
-                        `$env:PSModulePath = ""`$env:PSModulePath;$processModulePath""
+                        `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
                         ipmo Require
                         req Process
                         . '$PSScriptRoot\functions\helpers.ps1';
