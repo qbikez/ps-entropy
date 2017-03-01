@@ -1,1 +1,18 @@
+<<<<<<< HEAD
 {}
+=======
+// Place your settings in this file to overwrite default and user settings.
+{
+    "files.exclude": {
+        "**/.git": true,
+        "paket": true,
+        "paket-files": true,
+        "**/node_modules": true,
+        "**/packages": true,
+        "**/test-results": true,
+        "**/obj":true,
+        "**/bin": true
+    },
+    "powershell.scriptAnalysis.enable": false
+}
+>>>>>>> c7d946b14eb01bf223053b26b0d5031f4bcecbd6
