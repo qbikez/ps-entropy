@@ -159,7 +159,8 @@ function Request-Module(
                     if ($scope -eq "CurrentUser") {                       
                         install-module @p
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait                        
+                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait       
+                        if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }                 
                     }
                 }            
                 else {
@@ -188,19 +189,13 @@ function Request-Module(
                         } catch {
                             write-warning "need to update module as admin"
                             # if module was installed as Admin, try to update as admin
-<<<<<<< HEAD
                             run-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
-                        }
-                    } else {
-                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait
-=======
-                            run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait    
                             if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
                         }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait
+                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait
                         if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
->>>>>>> c7d946b14eb01bf223053b26b0d5031f4bcecbd6
+
                     }
                 }
                 $mo = gmo $_ -ListAvailable | select -first 1   
@@ -211,7 +206,6 @@ function Request-Module(
                     # if the repository has changed, we need to force install 
 
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
-<<<<<<< HEAD
                     $p = @{
                         Name = $_
                         Verbose = $true
@@ -236,27 +230,9 @@ function Request-Module(
                     if ($scope -eq "CurrentUser") {                       
                         install-module @p
                     } else {                      
-                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait                        
+                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
+                        if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }                    
                     }
-=======
-                    write-warning "trying again: install-module $_ -verbose -force -scope $scope"
-                    if ($scope -eq "CurrentUser") {
-                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
-                            install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber
-                        }
-                        else {
-                            install-module $_ -scope $scope -verbose -Force -ErrorAction stop
-                        }
-                    } else {                        
-                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) { 
-                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber") -wait
-                            if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }
-                        } else {
-                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop") -wait
-                            if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }
-                        }
-                    }  
->>>>>>> c7d946b14eb01bf223053b26b0d5031f4bcecbd6
                     $mo = gmo $_ -ListAvailable    
                 }
 
