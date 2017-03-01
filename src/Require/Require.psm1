@@ -86,7 +86,7 @@ function Request-Module(
 						$customsource = $source.substring("choco:".length)
 						$cmd = "Process\invoke choco upgrade -y $package -source $customsource -verbose"
 					}
-                    $processModulePath = split-path -parent (gmo Process).path
+                    $processModulePath = split-path -parent ((gmo Process).path)
            
                     run-AsAdmin -ArgumentList @("-Command", "
                         try {       
@@ -116,8 +116,12 @@ function Request-Module(
                     $mo = gmo $_ -ListAvailable
                 }
             }
-            if ($source -in "oneget","psget","powershellget","psgallery") {
-                write-warning "trying powershellget package manager"
+            if ($source -in "oneget","psget","powershellget","psgallery" -or $source.startswith("psgallery:")) {
+                $psrepository = $null
+                if ($source.startswith("psgallery:")) {
+                    $psrepository = $source.substring("psgallery:".Length)
+                }
+                write-warning "trying powershellget package manager repository='$psrepository'"
                 if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
                     import-module PackageManagement
                     $nuget = get-packageprovider -Name Nuget -force -forcebootstrap
@@ -131,40 +135,62 @@ function Request-Module(
                 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
                 
                 if ($mo -eq $null) {
-                    write-warning "install-module $_ -verbose"
-                    if ($scope -eq "CurrentUser") {
-                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
-                            install-module $_ -verbose -scope $scope -ErrorAction stop -AllowClobber
-                        } else {
-                            install-module $_ -verbose -scope $scope -ErrorAction stop
-                        }
+                    $p = @{
+                        Name = $_
+                        Verbose = $true
+                        Scope = $scope
+                        ErrorAction = "Stop"
+                    }
+                    if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                        $p += @{ AllowClobber = $true }  
+                    } 
+                    if ($psrepository -ne $null) {
+                        $p += @{ Repository = $psrepository }
+                    }
+                    $cmd = "install-module"
+                    write-warning "$cmd"                    
+                    foreach($kvp in $p.GetEnumerator()) {
+                        $val = $kvp.value
+                        if ($val -eq $true) { $val = "`$true" }
+                        $cmd += " -$($kvp.key):$($val)"
+                    }
+                    if ($scope -eq "CurrentUser") {                       
+                        install-module @p
                     } else {
-                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
-                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop -AllowClobber") -wait
-                        } else {
-                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -verbose -scope $scope -ErrorAction stop") -wait
-                        }
+                      
+                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait                        
                     }
                 }            
                 else {
-                    # remove module to avoid loading multiple versions
-                    write-warning "update-module $_ -verbose scope:$scope"                    
+                    # remove module to avoid loading multiple versions                    
                     rmo $_ -erroraction Ignore
                     $toupdate = $_
+                    $p = @{
+                        Name = $toupdate
+                        Verbose = $true
+                        ErrorAction = "Stop"
+                    }
+                    if ($psrepository -ne $null) {
+                        # update-module has no repository parameter
+                      #  $p += @{ Repository = $psrepository }
+                    }
+                    $cmd = "update-module"
+                    foreach($kvp in $p.GetEnumerator()) {
+                        $val = $kvp.value
+                        if ($val -eq $true) { $val = "`$true" }
+                        $cmd += " -$($kvp.key):$($val)"
+                    }
+                    write-warning "$cmd"                    
                     if ($scope -eq "CurrentUser") {
-                        try {             
-                            if (((get-command update-module).Parameters.AllowClobber) -ne $null) {    
-                                update-module $toupdate -verbose -erroraction stop
-                            } else {
-                                update-module $toupdate -verbose -erroraction stop
-                            }
+                        try {   
+                            update-module @p                                      
                         } catch {
                             write-warning "need to update module as admin"
                             # if module was installed as Admin, try to update as admin
-                            run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait    
+                            run-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                         }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", "update-module $toupdate -verbose -ErrorAction stop") -wait
+                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait
                     }
                 }
                 $mo = gmo $_ -ListAvailable | select -first 1   
@@ -175,21 +201,32 @@ function Request-Module(
                     # if the repository has changed, we need to force install 
 
                     write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
-                    write-warning "trying again: install-module $_ -verbose -force -scope $scope"
-                    if ($scope -eq "CurrentUser") {
-                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
-                            install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber
-                        }
-                        else {
-                            install-module $_ -scope $scope -verbose -Force -ErrorAction stop
-                        }
-                    } else {                        
-                        if (((get-command install-module).Parameters.AllowClobber) -ne $null) { 
-                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop -AllowClobber") -wait
-                        } else {
-                            run-AsAdmin -ArgumentList @("-Command", "install-module $_ -scope $scope -verbose -Force -ErrorAction stop") -wait
-                        }
-                    }  
+                    $p = @{
+                        Name = $_
+                        Verbose = $true
+                        Scope = $scope
+                        ErrorAction = "Stop"
+                        Force = $true
+                    }
+                    if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                        $p += @{ AllowClobber = $true }  
+                    } 
+                    if ($psrepository -ne $null) {
+                        $p += @{ Repository = $psrepository }
+                    }
+                    $cmd = "install-module"
+                    write-warning "trying again: $cmd"
+              
+                    foreach($kvp in $p.GetEnumerator()) {
+                        $val = $kvp.value
+                        if ($val -eq $true) { $val = "`$true" }
+                        $cmd += " -$($kvp.key):$($val)"
+                    }
+                    if ($scope -eq "CurrentUser") {                       
+                        install-module @p
+                    } else {                      
+                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait                        
+                    }
                     $mo = gmo $_ -ListAvailable    
                 }
 
