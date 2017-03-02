@@ -36,10 +36,20 @@ function Request-Module(
             } catch {
             }
         }
+
         if(!$found) {
             $mo = gmo $_ -ListAvailable
         }
         $found = $mo -ne $null -and $mo.Version[0] -ge $version
+    
+
+        if(!$found -and $mo -ne $null) {
+            $available = @(gmo $_ -ListAvailable)
+            $mo = $available
+            $matchingVers = @($available | ? { $_.Version -ge $version })
+            $found = ($matchingVers.Length -gt 0)
+        }
+    
         if ($reload -or ($version -ne $null -and $mo -ne $null -and $mo.Version[0] -lt $version)) {
             if (gmo $_) { rmo $_ }
         }
@@ -250,9 +260,15 @@ function Request-Module(
                     $s | Format-Table | Out-String | Write-Warning
                 }   
             }
+        
+        $found = $mo -ne $null -and $mo.Version[0] -ge $version
+        } else {
+            if (($matchingvers -ne $null) -and ($matchingvers.count -ge 0)) {
+                ipmo $_ -MinimumVersion $version
+                $mo = gmo $_
+            }
         }
 
-        $found = $mo -ne $null -and $mo.Version[0] -ge $version
                
         if (!($mo)) {          
             throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
