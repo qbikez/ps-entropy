@@ -1,0 +1,394 @@
+function New-RemoteSession { 
+[CmdletBinding()]
+param(
+[parameter(Mandatory=$true)] $ComputerName,
+[switch][bool] $NoSsl,
+[switch][bool] $Ssl,
+[switch][bool] $Reuse = $true,
+$ServerInfo = $null,
+[switch][bool] $ClearCredentials,
+$port,
+[switch][bool] $cim,
+$username,
+$password,
+[System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
+[switch][bool] $reloadSessionMap = $false
+)  
+    $map = find-sessionmap -reload:$reloadSessionMap
+    $bound = $PSBoundParameters
+    if ($bound.reloadSessionMap -ne $null) { $null = $bound.Remove("reloadSessionMap")  }
+    if ($bound.ErrorAction -ne $null) { $null = $bound.Remove("ErrorAction")  }
+    try {
+        $Error.Clear()
+        write-verbose "connecting with Negotiate auth method"
+	    $s = _new-remotesession @bound -ErrorAction:SilentlyContinue
+    } 
+    catch {
+    write-verbose $_
+    }
+
+    
+
+    if ($Error.Count -gt 0 -or $s -eq $null) {
+        write-verbose "fallback: connecting with manual credentials"
+        #$bound["Authentication"] = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic
+        try {
+        $s = _new-remotesession @bound -usecredentials:$true -ErrorAction:Continue 
+        } catch {
+            if ($_.Exception.Message.Contains(" Basic,")) {
+                write-warning "have you enabled basic authentication method, like this:"
+                write-warning 'set-item WSMan:\localhost\Client\Auth\Basic -Value true -Confirm:$false'
+            }
+            throw 
+        }
+    }
+
+    return $s
+}
+
+function _New-RemoteSession {
+
+param(
+[parameter(Mandatory=$true)] $ComputerName,
+[switch][bool] $NoSsl,
+[switch][bool] $Ssl,
+[switch][bool] $Reuse = $true,
+$ServerInfo = $null,
+[switch][bool] $ClearCredentials,
+[System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Negotiate,
+$port,
+[switch][bool] $cim,
+$username,
+$password,
+[switch][bool]$useCredentials
+) 
+    # ssl is the default
+    $use_ssl_by_default = $true
+    
+    if ($Ssl.IsPresent) {
+        $NoSsl = !$Ssl
+    }
+    elseif (!$NoSsl.IsPresent) {
+        $NoSsl = !$use_ssl_by_default
+        if ($port -eq 5985) { $NoSsl = $true }
+        if ($port -eq 5986) { $NoSsl = $false }
+    }    
+
+    $sessionVar = $ComputerName
+    if ($cim) { $sessionVar = "$($ComputerName)_cim" }
+    if ($ClearCredentials) { $Reuse = $false }
+    if ($Reuse -and (Test-Path variable:global:$sessionVar)) {
+        $currentSession = (Get-Variable -Name "$sessionVar").Value
+        if ($currentSession -ne $null -and ($cim -or ($currentSession.State -eq "Opened" -and $currentSession.Availability -eq "Available"))) {
+            write-verbose "retrieving exisitng session for '$computername'"
+            return $currentSession
+        }
+    }
+
+    
+
+        $hash = @{ 
+            "-UseSSL" = !$NoSsl
+            "-ComputerName" = $ComputerName
+        }
+        $found = $false
+        if ($global:psSessionsMap -ne $null) {
+            ipmo publishmap
+            $ServerInfo = get-entry $ComputerName -map $global:psSessionsMap 
+            $found = $ServerInfo -ne $null
+        }
+        if ($found) {
+            write-verbose "found '$ComputerName' in session map at '$Global:psSessionsMapPath'"
+            
+        } elseif ($ServerInfo -ne $null) {
+            if ($global:psSessionsMap -eq $null) {
+                $global:psSessionsMap = @{}
+            }
+            $global:psSessionsMap[$ComputerName] = $ServerInfo
+        }
+        else {
+            write-verbose "'$ComputerName' not found in session map"
+        }
+
+        if ($PSBoundParameters.usecredentials -eq $null) {
+            $useCredentials = $ServerInfo -ne $null `
+                -or ($Authentication -eq [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic) `
+                -or $ComputerName.endswith("cloudapp.net") `
+                -or ($username -ne $null -and $password -ne $null)
+        }
+        if ($ServerInfo -ne $null) {
+            $ServerInfo.Keys | % { 
+                if ($hash.ContainsKey("-$_")) {
+                    $hash["-$_"] = $ServerInfo[$_]
+                } elseif (!$_.StartsWith("_") -and $_ -ne "vars") {
+                    $hash["-$_"] = $ServerInfo[$_]
+                }
+            }
+
+            
+            if ($ServerInfo.UseSSL -ne $null) { $NoSsl = !$ServerInfo.UseSSL  }
+            if ($ServerInfo.Port -ne $null) { $port = $ServerInfo.Port }
+
+            if ($port -eq $null) {
+                if ($nossl) {
+                    $port = 5985
+                } else {
+                    $port = 5986
+                }
+            }
+        } else {             
+            if ($port -eq $null) {
+                $hasSsl = test-port $ComputerName 5986
+                if($hasSsl -and !$NoSsl) {
+                    $hash["-UseSSL"] = $true
+                    $port = 5986
+                } else {
+                    $hasPlain = test-port $ComputerName 5985
+                    if ($hasPlain) {
+                        $hash["-UseSSL"] = $false
+                        $port = 5985
+                    } else {
+                        throw "no entry in sessionmap for '$computername'. some Default ports are not available (5986[ssl]=$hasSsl and 5985[nossl]=$NoSsl)"
+                    }
+                }                    
+            } else {
+                $hash["-UseSSL"] = !$NoSsl
+            }        
+            
+             
+        }
+
+        if ($ClearCredentials) {
+            Cache\Remove-CredentialsCached -container "$ComputerName.cred" 
+        }
+        if ($useCredentials) {
+            if ($username -ne $null -and $password -ne $null) {
+                $secpass = ConvertTo-SecureString $password -AsPlainText -force
+                $cred = new-object System.Management.Automation.pscredential -ArgumentList @($username,$secpass)
+                $hash["-Credential"] = $cred
+            }
+            else {
+                $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $ComputerName" -container "$ComputerName.cred" 
+                $hash["-Credential"] = $cred
+            }
+        }
+
+        if ($port -ne $null) {
+            $hash["-Port"] = $port
+        }
+
+        if ($PSBoundParameters["Authentication"] -ne $null) {
+            $hash["-Auth"] = $Authentication
+        }
+        
+        $Error.Clear()
+        write-verbose "connecting with parameters:"
+        $hash | format-table -AutoSize | out-string -Stream | write-verbose
+
+
+        if ($cim) {
+
+            if ($hash.ContainsKey("-UseSSL")) { 
+                $hash.Remove("-UseSSL") 
+            }
+            $opts = New-CimSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck -UseSsl:$(!$nossl)
+            
+            $session = New-CimSession @hash -SessionOption $opts 
+        } else {
+            $opts = New-PSSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck
+            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts
+        
+            if ($Error.Count -ne 0) {
+                if ($Error[0] -match "SSL certificate is signed by an unknown certificate authority" -or $Error[0].Exception.ErrorCode -eq 12175) {
+                    write-host "getting remote cert"
+                    $p = $port 
+                    if ($p -eq $null) { $p = "rps" }
+                    $crt = Get-RemoteCert -computername $ComputerName -port $p
+                    write-host "found certificate for $($crt.Subject) issuer=$($crt.issuer). Installing to Cert:\CurrentUser\Root"
+                    $crt | Export-Certificate -FilePath "$ComputerName.cer"
+                    Import-Certificate -FilePath "$ComputerName.cer" -CertStoreLocation Cert:\CurrentUser\Root -Confirm:$false
+                    $Error.Clear()
+                    $session = New-PSSession @hash -SessionOption $opts 
+                }
+                if ($Error.Count -ne 0) {  
+                    $error | % { Write-error $_ }
+                    throw $error[0]
+                }
+            }
+        }
+
+        Set-Variable -Name "global:$sessionVar" -Value $session
+        
+        if ($ServerInfo -ne $null -and ![string]::IsNullOrEmpty($ServerInfo._defaultdir) -and !$cim) {
+            icm -Session $session -ScriptBlock { param($dir) cd $dir } -ArgumentList @($ServerInfo._defaultdir)
+        }
+
+        return $session
+    
+}
+
+function Test-Port 
+{
+    [cmdletbinding()]
+    Param(
+        [parameter(ParameterSetName='ComputerName', Position=0)]
+        [string]
+        $ComputerName,
+
+        [parameter(ParameterSetName='IP', Position=0)]
+        [System.Net.IPAddress]
+        $IPAddress,
+
+        [parameter(Mandatory=$true , Position=1)]
+        [int]
+        $Port,
+
+        [parameter(Mandatory=$false, Position=2)]
+        [ValidateSet("TCP", "UDP")]
+        [string]
+        $Protocol = "TCP",
+        $timeout = 1000
+        )
+
+    $RemoteServer = If ([string]::IsNullOrEmpty($ComputerName)) {$IPAddress} Else {$ComputerName};
+
+    If ($Protocol -eq 'TCP')
+    {
+        $test = New-Object System.Net.Sockets.TcpClient;
+        Try
+        {            
+            Write-verbose "Connecting to $RemoteServer :$Port (TCP)..";
+            $r = $test.BeginConnect($RemoteServer, $Port, $null, $null);
+            $s = $r.AsyncWaitHandle.WaitOne([timespan]::FromMilliseconds($timeout));
+            if (!$s) {
+                throw "connection timed out after $timeout"
+            }
+            Write-verbose "Connection successful";
+            return $true
+        }
+        Catch
+        {
+            Write-verbose "Connection failed: $_";
+            return $false
+        }
+        Finally
+        {
+            $test.Dispose();
+        }
+    }
+
+    If ($Protocol -eq 'UDP')
+    {
+        Write-warning "UDP port test functionality currently not available."
+        <#
+        $test = New-Object System.Net.Sockets.UdpClient;
+        Try
+        {
+            Write-Host "Connecting to "$RemoteServer":"$Port" (UDP)..";
+            $test.Connect($RemoteServer, $Port);
+            Write-Host "Connection successful";
+        }
+        Catch
+        {
+            Write-Host "Connection failed";
+        }
+        Finally
+        {
+            $test.Dispose();
+        }
+        #>
+    }
+}
+
+
+function Enter-RemoteSession {
+param(
+[parameter(Mandatory=$true)] $ComputerName,
+[switch][bool] $NoSsl,
+[switch][bool] $Ssl,
+[switch][bool] $ClearCredentials,
+$port,
+[switch][bool] $Reuse = $true,
+[switch][bool] $reloadSessionMap = $true,
+[switch][bool] $NoEnter = $false,
+[switch][bool] $cim,
+$username,
+$password
+) 
+    $s = new-remotesession $computername -Reuse:$Reuse -port $port -NoSsl:$NoSsl -Ssl:$Ssl -ClearCredentials:$ClearCredentials -cim:$cim -username:$username -password:$password -reloadSessionMap:$reloadSessionMap
+
+    if (!$NoEnter -and !$cim) {
+        $s | Enter-PSSession
+    } else {
+        return $s
+    }
+}
+
+set-alias rps Enter-RemoteSession 
+
+
+function _get-syncdir() {
+    if (test-path "HKCU:\Software\Microsoft\OneDrive") 
+    {
+        $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
+        if ($prop -ne $null) {
+            $dir = $prop.userfolder
+        }        
+    }
+
+    return $dir
+}
+
+
+
+function find-sessionmap {
+param ([switch][bool] $reload = $true) 
+     if ($Global:psSessionsMap -eq $null -or $reload) {
+        write-verbose "looking for sessionmap.ps1"
+        $searchPAths = "$home\Documents\WindowsPowerShell\sessionmap.config.ps1","$home\Documents\sessionmap.config.ps1","$home\sessionmap.config.ps1","$(_get-syncdir)\sessionmap.config.ps1","$(_get-syncdir)\Documents\sessionmap.config.ps1"
+        foreach($p in $searchpaths) {
+            if (test-path $p) {
+                write-verbose "found sessionmap at $p"
+                $map = . $p
+                if ($map -ne $null) {
+                    $Global:psSessionsMap = $map
+                    $Global:psSessionsMapPath = $p
+                    break
+                }                
+            }
+        }
+    } else {
+        write-verbose "global session map exists. NOT looking for sessionmap.ps1"
+    }
+    
+    return $Global:psSessionsMap
+}
+
+function find-rdp {
+param($name)
+
+$searchPAths = "$home\Documents\WindowsPowerShell\rdp","$home\Documents\rdp","$home\rdp","$(_get-syncdir)\rdp","$(_get-syncdir)\Documents\rdp"
+        foreach($p in $searchpaths) {
+            $p = join-path $p "$name.rdp"
+            if (test-path $p) {
+                write-verbose "found rdp file at $p"
+                return $p
+            }
+        }
+    
+}
+
+function enter-rdp ($name) {
+    $file = find-rdp $name
+    if ($file -eq $null -and $name.contains("."))  {
+        write-host "running mstsc /v:$name"
+        mstsc /v:$name
+        return
+    }
+    if ($file -eq $null) { throw "rdp profile '$name' not found" }
+
+    write-host "running mstsc '$file'..."
+    mstsc $file 
+}
+
+new-alias rdp enter-rdp
