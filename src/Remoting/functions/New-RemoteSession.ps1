@@ -1,18 +1,20 @@
 function New-RemoteSession { 
 [CmdletBinding()]
 param(
-[parameter(Mandatory=$true)] $ComputerName,
-[switch][bool] $NoSsl,
-[switch][bool] $Ssl,
-[switch][bool] $Reuse = $true,
-$ServerInfo = $null,
-[switch][bool] $ClearCredentials,
-$port,
-[switch][bool] $cim,
-$username,
-$password,
-[System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
-[switch][bool] $reloadSessionMap = $false
+    [parameter(Mandatory=$true)] $ComputerName,
+    [switch][bool] $NoSsl,
+    [switch][bool] $Ssl,
+    [switch][bool] $Reuse = $true,
+    $ServerInfo = $null,
+    [switch][bool] $ClearCredentials,
+    $port,
+    [switch][bool] $cim,
+    [parameter(Mandatory=$false)] 
+    [pscredential]
+    [System.Management.Automation.Credential()]
+    $credential = [pscredential]::Empty,
+    [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
+    [switch][bool] $reloadSessionMap = $false
 )  
     $map = find-sessionmap -reload:$reloadSessionMap
     $bound = $PSBoundParameters
@@ -33,7 +35,7 @@ $password,
         write-verbose "fallback: connecting with manual credentials"
         #$bound["Authentication"] = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic
         try {
-        $s = _new-remotesession @bound -usecredentials:$true -ErrorAction:Continue 
+            $s = _new-remotesession @bound -ErrorAction:Continue 
         } catch {
             if ($_.Exception.Message.Contains(" Basic,")) {
                 write-warning "have you enabled basic authentication method, like this:"
@@ -58,9 +60,10 @@ $ServerInfo = $null,
 [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Negotiate,
 $port,
 [switch][bool] $cim,
-$username,
-$password,
-[switch][bool]$useCredentials
+[Parameter(Mandatory=$false)]
+[pscredential]
+[System.Management.Automation.CredentialAttribute()]
+$credential
 ) 
     # ssl is the default
     $use_ssl_by_default = $true
@@ -110,12 +113,8 @@ $password,
             write-verbose "'$ComputerName' not found in session map"
         }
 
-        if ($PSBoundParameters.usecredentials -eq $null) {
-            $useCredentials = $ServerInfo -ne $null `
-                -or ($Authentication -eq [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic) `
-                -or $ComputerName.endswith("cloudapp.net") `
-                -or ($username -ne $null -and $password -ne $null)
-        }
+
+
         if ($ServerInfo -ne $null) {
             $ServerInfo.Keys | % { 
                 if ($hash.ContainsKey("-$_")) {
@@ -161,16 +160,34 @@ $password,
         if ($ClearCredentials) {
             Cache\Remove-CredentialsCached -container "$ComputerName.cred" 
         }
+
+        $bound = $PSBoundParameters
+                
+        $useCredentials = $ServerInfo -ne $null `
+            -or ($Authentication -eq [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic) `
+            -or $ComputerName.endswith("cloudapp.net") `
+            -or ($credential -ne [pscredential]::Empty) `
+            -or ($bound.credential -eq $null)
+        #$useCredentials = $credential -ne [pscredential]::Empty
+
+
         if ($useCredentials) {
+            <#
             if ($username -ne $null -and $password -ne $null) {
                 $secpass = ConvertTo-SecureString $password -AsPlainText -force
                 $cred = new-object System.Management.Automation.pscredential -ArgumentList @($username,$secpass)
                 $hash["-Credential"] = $cred
             }
-            else {
+            #>
+            if ($bound.credential -eq $null) {
+                # auto credentials
                 $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $ComputerName" -container "$ComputerName.cred" 
-                $hash["-Credential"] = $cred
+            } 
+            else {
+                # use provided credentials
+                $cred = $credential  
             }
+            $hash["-Credential"] = $cred
         }
 
         if ($port -ne $null) {
@@ -211,7 +228,8 @@ $password,
                     $session = New-PSSession @hash -SessionOption $opts 
                 }
                 if ($Error.Count -ne 0) {  
-                    $error | % { Write-error $_ }
+                    $err = @()
+                    $error | % { $err += $_ }
                     throw $error[0]
                 }
             }
@@ -312,10 +330,13 @@ $port,
 [switch][bool] $reloadSessionMap = $true,
 [switch][bool] $NoEnter = $false,
 [switch][bool] $cim,
-$username,
-$password
+[pscredential]
+[System.Management.Automation.Credential()]
+$credential = [PSCredential]::Empty
 ) 
-    $s = new-remotesession $computername -Reuse:$Reuse -port $port -NoSsl:$NoSsl -Ssl:$Ssl -ClearCredentials:$ClearCredentials -cim:$cim -username:$username -password:$password -reloadSessionMap:$reloadSessionMap
+    $bound = $PSBoundParameters
+    $bound.Remove("NoEnter") 
+    $s = new-remotesession @bound
 
     if (!$NoEnter -and !$cim) {
         $s | Enter-PSSession
@@ -391,4 +412,4 @@ function enter-rdp ($name) {
     mstsc $file 
 }
 
-new-alias rdp enter-rdp
+new-alias rdp enter-rdp -force

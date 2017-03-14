@@ -51,7 +51,7 @@ function Request-Module(
         }
     
         if ($reload -or ($version -ne $null -and $mo -ne $null -and $mo.Version[0] -lt $version)) {
-            if (gmo $_) { rmo $_ }
+            if (gmo $_) { rmo $_ }            
         }
 
         if (!$found) {
