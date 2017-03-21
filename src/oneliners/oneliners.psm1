@@ -366,8 +366,8 @@ function Register-FileSystemWatcher {
     
     param(
         [Parameter(Mandatory=$true)][string]$file, 
-        $filter = "*.*",
         [Parameter(Mandatory=$true)][scriptblock] $cmd,        
+        $filter = "*.*",
         [ValidateSet("Created","Changed","Deleted","Renamed")]
         $events = @("Created","Changed","Deleted","Renamed"),
         [switch][bool] $loop,
