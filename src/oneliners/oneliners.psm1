@@ -301,13 +301,15 @@ param(
     [Parameter(Mandatory=$false)]$AsUser
 )
 process {
-	ipmo psslack
+	ipmo Require
+    req psslack
 
-	$cred = get-credentialscached -message "slack username and token" -container "slack"
+	$cred = get-credentialscached -message "slack username and token (or webhook  uri)" -container "slack"
 	$username = $cred.UserName
 	$token = $cred.GetNetworkCredential().password
 
 	$sendasuser = $AsUser
+
 	if ($AsUser -eq $null) {
 		$sendasuser = $true
 	}
@@ -322,8 +324,15 @@ process {
 		if ($AsUser -eq $null) { $sendasuser = $false }
 	}
 
-
-	Send-SlackMessage -Token $token -Username $username -Text $text -Channel $channel -AsUser:$sendasuser
+    $a = @{}
+    if ($token.startswith("http")) {
+        $a["uri"] = $token
+    } else {
+        $a["token"] = $token
+        $a["username"] = $username
+        $a["channel"] = $channel
+    }
+	Send-SlackMessage @a -Text $text  -AsUser:$sendasuser
 }
 }
 
