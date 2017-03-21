@@ -353,6 +353,55 @@ function grep {
 
 }
 
+function Register-FileSystemWatcher {
+    
+    param(
+        [Parameter(Mandatory=$true)][string]$file, 
+        $filter = "*.*",
+        [Parameter(Mandatory=$true)][scriptblock] $cmd,        
+        [ValidateSet("Created","Changed","Deleted","Renamed")]
+        $events = @("Created","Changed","Deleted","Renamed"),
+        [switch][bool] $loop,
+        [switch][bool] $nowait         
+    ) 
+
+    ### SET FOLDER TO WATCH + FILES TO WATCH + SUBFOLDERS YES/NO
+    $watcher = New-Object System.IO.FileSystemWatcher
+    $watcher.Path = (get-item $file).FullName
+    $watcher.Filter = $filter
+    $watcher.IncludeSubdirectories = $true
+    $watcher.EnableRaisingEvents = $true  
+
+    ### DEFINE ACTIONS AFTER AN EVENT IS DETECTED
+    $action = { 
+                #$event | format-table | out-string | write-verbose -verbose
+                #$event.MessageData | out-string | write-verbose -verbose
+                #$event.MessageData.gettype() | out-string | write-verbose -verbose
+                $path = $Event.SourceEventArgs.FullPath
+                $changeType = $Event.SourceEventArgs.ChangeType
+                        
+                $logline = "$(Get-Date), $changeType, $path"
+                write-verbose $logline -Verbose
+                Invoke-Command $event.MessageData.cmd -ArgumentList $path,$changeType
+                if ($event.MessageData.loop) {
+                    #Register-ObjectEvent $event.sender -EventName $changeType -Action $event.MessageData.action -MessageData $event.MessageData
+                }
+      }          
+
+### DECIDE WHICH EVENTS SHOULD BE WATCHED 
+
+$jobs = $events | % {
+     Register-ObjectEvent $watcher $_ -Action $action -MessageData @{ action = $action; cmd = $cmd; loop = $loop }
+}
+    if (!$nowait) {
+        try {
+            while ($true) {sleep 1}
+        } finally {
+            Stop-Job $jobs
+        }
+    }
+}
+
 
 new-alias tp test-path
 new-alias git-each invoke-giteach
@@ -367,6 +416,7 @@ new-alias relmo reload-module
 new-alias tcpping test-tcp
 new-alias is-admin test-isadmin
 new-alias slack send-slack
-
+new-alias watch-file Register-FileSystemWatcher 
+new-alias watch watch-file
 Export-ModuleMember -Function * -Cmdlet * -Alias *
 
