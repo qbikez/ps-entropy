@@ -11,7 +11,7 @@ param(
     [switch][bool] $cim,
     [parameter(Mandatory=$false)] 
     [pscredential]
-    [System.Management.Automation.Credential()]
+    #[System.Management.Automation.Credential()]
     $credential = [pscredential]::Empty,
     [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
     [switch][bool] $reloadSessionMap = $false
@@ -62,6 +62,7 @@ $port,
 [switch][bool] $cim,
 [Parameter(Mandatory=$false)]
 [pscredential]
+#[System.Management.Automation.Credential()]
 $credential = [pscredential]::Empty
 ) 
     # ssl is the default
@@ -171,6 +172,7 @@ $credential = [pscredential]::Empty
 
 
         if ($useCredentials) {
+            write-verbose "will use credentials"
             <#
             if ($username -ne $null -and $password -ne $null) {
                 $secpass = ConvertTo-SecureString $password -AsPlainText -force
@@ -179,14 +181,26 @@ $credential = [pscredential]::Empty
             }
             #>
             if ($bound.credential -eq $null) {
+                write-verbose "trying cached credentials"
                 # auto credentials
-                $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $ComputerName" -container "$ComputerName.cred" 
+                $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $ComputerName" -container "$ComputerName.cred" -verbose
+                if ($cred -eq $null) {
+                    throw "credentials are required for remote connection to '$ComputerName', but there are no cached credentials in container '$ComputerName.cred'!"
+                }
             } 
             else {
                 # use provided credentials
+                write-verbose "using provided credentials"
                 $cred = $credential  
             }
+
+            if ($cred -eq $null) {
+                throw "credentials are required for remote connection to '$ComputerName', but none given!"
+            }
+            write-verbose "passing credentials for user $($cred.username)"
             $hash["-Credential"] = $cred
+        } else {
+            write-verbose "not using credentials"
         }
 
         if ($port -ne $null) {
