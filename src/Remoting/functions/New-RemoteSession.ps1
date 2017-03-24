@@ -62,8 +62,7 @@ $port,
 [switch][bool] $cim,
 [Parameter(Mandatory=$false)]
 [pscredential]
-[System.Management.Automation.CredentialAttribute()]
-$credential
+$credential = [pscredential]::Empty
 ) 
     # ssl is the default
     $use_ssl_by_default = $true
