@@ -15,7 +15,7 @@ function Invoke-Jenkins {
     ipmo require   
     req newtonsoft.json
 
-    if ($action -eq "attach") { $attach = $true } 
+    if ($action -eq "attach" -and $attach -eq $null) { $attach = "latest" } 
 
     if ($server -eq $null) {
         $server = $env:JENKINS_URL
@@ -83,6 +83,8 @@ function Invoke-Jenkins {
     <#
   Construct URL for Build Request
 #>
+    $jobnumber = $null
+
 
     if ($action -eq "start") {
         if ($jobparams -ne $null) { 
@@ -153,13 +155,13 @@ function Invoke-Jenkins {
         #$url  = "$($JOB_URL)/api/json"
  
         $tries = 20
-        $jobnumber = $null
 
         do {
             $output = Invoke-WebRequest $url -Method GET  -Headers $headers
             if (($output.Content -match "<builds>")) {
                 [xml]$jobdetails = $output.Content
                 $jobnumber = $jobdetails.builds.build.number    
+                write-verbose "job number is: $jobnumber"
             }
             else {
                 write-host "[$(get-date -format 'HH:mm:ss')] still waiting for build to appear in API"
@@ -171,10 +173,14 @@ function Invoke-Jenkins {
             }
         }
         while ($jobnumber -eq $null -and $tries -gt 0)
+
+        if ($jobnumber -eq $null) {
+            throw "Build with queue id $queueId not found in API!"
+        }
     } 
 
-    if ($action -eq "attach" -or $action -eq "start") {
-        if ($attach -eq "latest") {
+    if ($action -eq "attach") {
+        if ($action -eq "attach" -and ($attach -eq "latest")) {
             $url = "$($JOB_URL)/api/xml?xpath=//build[building='true'][1]&wrapper=builds&tree=builds[actions,number,queueId,building]"
             $output = Invoke-WebRequest $url -Method GET  -Headers $headers
             [xml]$jobdetails = $output.Content    
@@ -188,9 +194,10 @@ function Invoke-Jenkins {
                 $jobnumber = $jobdetails.builds.build.number    
             }
         }
-        else {
+        elseif ($attach -ne $true) {
             $jobnumber = $attach
         }
+        write-host  "attaching to job $($attach): $jobnumber"
     }
 
     write-host "=========== Console output ============="
