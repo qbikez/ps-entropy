@@ -383,17 +383,22 @@ function Register-FileSystemWatcher {
 
     ### DEFINE ACTIONS AFTER AN EVENT IS DETECTED
     $action = { 
+                try {
                 #$event | format-table | out-string | write-verbose -verbose
                 #$event.MessageData | out-string | write-verbose -verbose
                 #$event.MessageData.gettype() | out-string | write-verbose -verbose
                 $path = $Event.SourceEventArgs.FullPath
                 $changeType = $Event.SourceEventArgs.ChangeType
                         
-                $logline = "$(Get-Date), $changeType, $path"
-                write-verbose $logline -Verbose
-                Invoke-Command $event.MessageData.cmd -ArgumentList $path,$changeType
+                write-verbose "[$(Get-Date)] $changeType, $path" -Verbose
+                Invoke-Command $event.MessageData.cmd -ArgumentList $path,$changeType -Verbose
+                write-verbose "[$(Get-Date)] DONE $changeType, $path" -Verbose
                 if ($event.MessageData.loop) {
                     #Register-ObjectEvent $event.sender -EventName $changeType -Action $event.MessageData.action -MessageData $event.MessageData
+                }
+                } catch {
+                    write-error $_
+                    throw                    
                 }
       }          
 
@@ -404,7 +409,7 @@ $jobs = $events | % {
 }
     if (!$nowait) {
         try {
-            while ($true) {sleep 1}
+            while ($true) { sleep 1 }
         } finally {
             Stop-Job $jobs
         }
