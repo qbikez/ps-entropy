@@ -87,34 +87,41 @@ function Invoke-Jenkins {
 
 
     if ($action -eq "start") {
-        if ($jobparams -ne $null) { 
-            $url = "$($JOB_URL)/buildWithParameters?"
- 
-            $count = 0
-            foreach ($h in $jobparams.GetEnumerator()) {
-                $h
-                $count = $count + 1
-                $url = $url + "$($h.Name)=$([System.Web.HttpUtility]::UrlEncode($h.Value))"
-                if (!($count -eq $jobparams.Count)) {
-                    $url = $url + "&"
+        $tries = 2
+        for($t = $tries; $t -gt 0; $t--) {
+            if ($jobparams -ne $null) { 
+                $url = "$($JOB_URL)/buildWithParameters?"
+    
+                $count = 0
+                foreach ($h in $jobparams.GetEnumerator()) {
+                    $h
+                    $count = $count + 1
+                    $url = $url + "$($h.Name)=$([System.Web.HttpUtility]::UrlEncode($h.Value))"
+                    if (!($count -eq $jobparams.Count)) {
+                        $url = $url + "&"
+                    }
                 }
             }
-        }
-        else {
-            $url = "$($JOB_URL)/build"
-        }
- 
-        $result = $null
- 
-        try {
-            $jobsubmit = Invoke-WebRequest $url -Method POST -Headers $headers -ContentType "application/json" -Body "" -ErrorAction stop
-        } catch {
-                 write-warning $_.Exception.Message
-            if ($_.Exception.Message.Contains("Nothing is submitted") -or $_.Exception.Message.Contains("400")) {
-                write-warning "does this job have parameters? consider adding -jobparams @{}"
+            else {
+                $url = "$($JOB_URL)/build"
             }
-            throw $_
-        }    
+    
+            $result = $null
+    
+            try {
+                $jobsubmit = Invoke-WebRequest $url -Method POST -Headers $headers -ContentType "application/json" -Body "" -ErrorAction stop
+                break
+            } catch {
+                if ($t -le 1) { throw }
+                if ($_.Exception.Message.Contains("Nothing is submitted") -or $_.Exception.Message.Contains("400")) {
+                    write-warning "does this job have parameters? trying with -jobparams @{}"
+                    $jobparams = @{}
+                }
+                else {
+                    throw
+                }
+            }    
+        }
         #hack to get output
         $linearray = $null
         $linearray = ($jobsubmit.RawContent).Split()
