@@ -22,17 +22,26 @@ param(
     if ($bound.ErrorAction -ne $null) { $null = $bound.Remove("ErrorAction")  }
     try {
         $Error.Clear()
-        write-verbose "connecting with Negotiate auth method"
+        write-verbose "===> connecting with Negotiate auth method"
+        $s = $null
 	    $s = _new-remotesession @bound -ErrorAction:SilentlyContinue
     } 
     catch {
-    write-verbose $_
+        # this was the first try, ignore erorrs
+        write-verbose $_
     }
 
     
-
+    if ($s -ne $null) {
+        write-verbose "I have some session:"
+        $s | format-table | out-string | write-verbose
+    }
+    else {
+        if ($Error.Count -eq 0) {
+        } 
+    }
     if ($Error.Count -gt 0 -or $s -eq $null) {
-        write-verbose "fallback: connecting with manual credentials"
+        write-verbose "===> fallback: connecting with manual credentials"
         #$bound["Authentication"] = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic
         try {
             $s = _new-remotesession @bound -ErrorAction:Continue 
@@ -88,17 +97,17 @@ $credential = [pscredential]::Empty
     }
 
     
-
         $hash = @{ 
             "-UseSSL" = !$NoSsl
             "-ComputerName" = $ComputerName
         }
         $found = $false
         if ($global:psSessionsMap -ne $null) {
-            ipmo publishmap
+            $null = ipmo publishmap -Verbose:$false
             $ServerInfo = get-entry $ComputerName -map $global:psSessionsMap 
             $found = $ServerInfo -ne $null
         }
+   
         if ($found) {
             write-verbose "found '$ComputerName' in session map at '$Global:psSessionsMapPath'"
             
@@ -111,8 +120,6 @@ $credential = [pscredential]::Empty
         else {
             write-verbose "'$ComputerName' not found in session map"
         }
-
-
 
         if ($ServerInfo -ne $null) {
             $ServerInfo.Keys | % { 
@@ -135,6 +142,7 @@ $credential = [pscredential]::Empty
                 }
             }
         } else {             
+
             if ($port -eq $null) {
                 $hasSsl = test-port $ComputerName 5986
                 if($hasSsl -and !$NoSsl) {
@@ -168,7 +176,6 @@ $credential = [pscredential]::Empty
             -or ($credential -ne [pscredential]::Empty) `
             -or ($bound.credential -eq $null)
         #$useCredentials = $credential -ne [pscredential]::Empty
-
 
         if ($useCredentials) {
             write-verbose "will use credentials"
@@ -247,13 +254,14 @@ $credential = [pscredential]::Empty
             }
         }
 
+        Write-Verbose "storing session to '$ComputerName' in 'global:$sessionVar'"
         Set-Variable -Name "global:$sessionVar" -Value $session
         
         if ($ServerInfo -ne $null -and ![string]::IsNullOrEmpty($ServerInfo._defaultdir) -and !$cim) {
-            icm -Session $session -ScriptBlock { param($dir) cd $dir } -ArgumentList @($ServerInfo._defaultdir)
+            $r = icm -Session $session -ScriptBlock { param($dir) cd $dir } -ArgumentList @($ServerInfo._defaultdir)
         }
 
-        return $session
+       return $session
     
 }
 
@@ -349,7 +357,9 @@ $credential = [PSCredential]::Empty
     $bound = $PSBoundParameters
     $null = $bound.Remove("NoEnter") 
     $s = new-remotesession @bound
-
+    if ($s -eq $null) {
+        throw "failed to connect to '$computername'"
+    }
     if (!$NoEnter -and !$cim) {
         $s | Enter-PSSession
     } else {
