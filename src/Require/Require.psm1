@@ -9,7 +9,7 @@ function Request-Module(
     [switch][bool] $wait = $false,
     [Parameter()]
     [ValidateSet("AllUsers","CurrentUser","Auto")]
-    [string] $scope = "Auto"
+    [string] $scope = "CurrentUser"
 
 ) {
     import-module process -Global
