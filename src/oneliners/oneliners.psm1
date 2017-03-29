@@ -332,7 +332,7 @@ process {
         $a["username"] = $username
         $a["channel"] = $channel
     }
-	Send-SlackMessage @a -Text $text  -AsUser:$sendasuser
+	$null = Send-SlackMessage @a -Text $text  -AsUser:$sendasuser
 }
 }
 
@@ -360,6 +360,40 @@ function grep {
     end {        
     }
 
+}
+
+function notify {
+    param(
+        [Parameter(Mandatory=$true, ValueFromPipeline=$true)]$Text,
+        [Parameter(Mandatory=$false)]$Channel,
+        [Parameter(Mandatory=$false)]$AsUser
+    )
+    begin { 
+        slack "[$(get-date -Format "yyyy-MM-dd HH:mm:ss.ff")] Starting $Text" -Channel $Channel -AsUser:$AsUser 
+    }
+    process {
+        write-verbose "notify"
+    }    
+    end {
+        if ($Text -is [System.Management.Automation.ErrorRecord]) {
+            slack "[$(get-date -Format "yyyy-MM-dd HH:mm:ss.ff")] FAIL $Text" -Channel $Channel -AsUser:$AsUser
+        } else {
+            slack "[$(get-date -Format "yyyy-MM-dd HH:mm:ss.ff")] DONE $Text" -Channel $Channel -AsUser:$AsUser
+        }
+    }
+}
+
+function tryloop {
+    param([scriptblock]$cmd, $interval = 1)
+    while(1) {
+        try {
+            invoke-command $cmd -ErrorAction Stop
+            break
+        } catch {
+            write-warning $_.Message
+            start-sleep $interval
+        }
+    }
 }
 
 function Register-FileSystemWatcher {
