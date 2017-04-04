@@ -66,7 +66,7 @@ Description = 'Cmdlets helpful in estabilishing remote powershell connections'
 # FormatsToProcess = @()
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-# NestedModules = @("Cache")
+NestedModules = @("Cache")
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @("Enter-Rdp", "Enter-RemoteSession","New-RemoteSession","Test-Port","Get-RemoteCert", "Find-SessionMap")
