@@ -221,7 +221,7 @@ $credential = [pscredential]::Empty
         write-verbose "connecting with parameters:"
         $hash | format-table -AutoSize | out-string -Stream | write-verbose
 
-
+        $session = $null
         if ($cim) {
 
             if ($hash.ContainsKey("-UseSSL")) { 
@@ -230,10 +230,11 @@ $credential = [pscredential]::Empty
             $opts = New-CimSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck -UseSsl:$(!$nossl)
             
             $session = New-CimSession @hash -SessionOption $opts 
+            if ($session -eq $null) { throw "failed to create remote CIM sesssion" }
         } else {
             $opts = New-PSSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck
-            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts
-        
+            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts        
+            if ($session -eq $null) { throw "failed to create remote powershell sesssion" }
             if ($Error.Count -ne 0) {
                 if ($Error[0] -match "SSL certificate is signed by an unknown certificate authority" -or $Error[0].Exception.ErrorCode -eq 12175) {
                     write-host "getting remote cert"
@@ -257,6 +258,7 @@ $credential = [pscredential]::Empty
         Write-Verbose "storing session to '$ComputerName' in 'global:$sessionVar'"
         Set-Variable -Name "global:$sessionVar" -Value $session
         
+        if ($session -eq $null) { throw "Cannot enter remote session, because it has not been initialized" }
         if ($ServerInfo -ne $null -and ![string]::IsNullOrEmpty($ServerInfo._defaultdir) -and !$cim) {
             $r = icm -Session $session -ScriptBlock { param($dir) cd $dir } -ArgumentList @($ServerInfo._defaultdir)
         }
