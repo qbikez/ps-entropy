@@ -25,8 +25,25 @@ function ConvertFrom-JObject($obj) {
    }
 }
 
-function ConvertFrom-JsonNewtonsoft([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$string) {
-	$obj = [Newtonsoft.Json.JsonConvert]::DeserializeObject($string, [Newtonsoft.Json.Linq.JObject])
+
+function ConvertFrom-JsonNewtonsoft {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$string) 
+	
+    $HandleDeserializationError = 
+    {
+        param ([object] $sender, [Newtonsoft.Json.Serialization.ErrorEventArgs] $errorArgs)
+        $currentError = $errorArgs.ErrorContext.Error.Message
+        write-warning $currentError
+        $errorArgs.ErrorContext.Handled = $true
+        
+    }
+
+    $settings = new-object "Newtonsoft.Json.JSonSerializerSettings"
+    if ($ErrorActionPreference -eq "Ignore") {
+        $settings.Error = $HandleDeserializationError
+    }
+    $obj = [Newtonsoft.Json.JsonConvert]::DeserializeObject($string, [Newtonsoft.Json.Linq.JObject], $settings)    
     
     return ConvertFrom-JObject $obj
 }
