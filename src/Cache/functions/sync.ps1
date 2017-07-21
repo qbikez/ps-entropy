@@ -1,4 +1,50 @@
 
+function get-propertynames($obj) {
+  #  Measure-function "$($MyInvocation.MyCommand.Name)" {    
+        if ($obj -is [System.Collections.IDictionary]) {
+            return $obj.keys
+        }
+        return $obj.psobject.Properties | select -ExpandProperty name
+ #   }
+}
+
+function ConvertTo-Hashtable([Parameter(ValueFromPipeline=$true)]$obj, [switch][bool]$recurse) {
+ #   Measure-function  "$($MyInvocation.MyCommand.Name)" {
+
+        $object =$obj
+        if (!$recurse -and ($object -is [System.Collections.IDictionary] -or $object -is [array])) {
+            return $object
+        }
+ 
+        if($object -is [array]) {
+            if ($recurse) {
+                for($i = 0; $i -lt $object.Length; $i++) {
+                    $object[$i] = ConvertTo-Hashtable $object[$i] -recurse:$recurse
+                }
+            }
+            return $object
+        } 
+        elseif ($object -is [System.Collections.IDictionary] -or  $object -is [System.Management.Automation.PSCustomObject] -or $true) {
+            $h = @{}
+            $props = get-propertynames $object
+            foreach ($p in $props) {
+                if ($recurse) {
+                    $h[$p] = ConvertTo-Hashtable $object.$p -recurse:$recurse
+                } else {
+                    $h[$p] = $object.$p
+                }
+            }
+            return $h
+        } else {
+            throw "could not convert object to hashtable"
+            #return $object
+        }
+ #   }
+	
+}
+
+
+
 function get-syncdir() {
     if (test-path "HKCU:\Software\Microsoft\OneDrive") 
     {
