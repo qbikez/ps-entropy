@@ -471,7 +471,7 @@ function copy-sshid {
     if ($idfile -ne $null) {
         $cfg += "   IdentityFile $idfile"
     }
-    $cfg | Out-File $config -Encoding utf8
+    $cfg | Out-File $config -Encoding ascii
 
 }
 
