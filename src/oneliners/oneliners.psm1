@@ -225,10 +225,15 @@ function Add-DnsAlias {
         }
     }
     for($l = 0; $l -lt $hostlines.Length; $l++) {
-        $_ = $hostlines[$l]
-        if ($_.Trim().StartsWith("#") -or $_.Trim().length -eq 0) { continue }        
-        $s = $_.Trim().Split(' ')
+        $_ = $hostlines[$l].Trim()
+        if ($_.StartsWith("#") -or $_.length -eq 0 -or [string]::IsNullOrEmpty($_)) { continue }        
+        $s = $_.Split(' ')
+        $org = $_
+        try {
         $hosts[$s[1]] = new-object -type pscustomobject -Property @{ alias = $s[1]; ip = $s[0]; line = $l } 
+        } catch {
+            write-warning "failed to pars etc/hosts line: '$org'"
+        }
     }
     
     if ($hosts.ContainsKey($from)) {
@@ -245,7 +250,7 @@ function Add-DnsAlias {
     write-verbose "backing up etc\hosts to $env:TEMP\hosts-$guid"
     copy-item "c:\Windows\System32\drivers\etc\hosts" "$env:TEMP\hosts-$guid"  
     
-    $hostlines | Out-File "c:\Windows\System32\drivers\etc\hosts" 
+    $hostlines | Out-File "c:\Windows\System32\drivers\etc\hosts" -Encoding ascii
 }
 
 function remove-dnsalias([Parameter(Mandatory=$true)] $from) {
@@ -462,7 +467,7 @@ new-alias tee-filter split-output
 new-alias any test-any
 new-alias relmo reload-module
 new-alias tcpping test-tcp
-new-alias is-admin test-isadmin
+#new-alias is-admin test-isadmin
 new-alias slack send-slack
 new-alias watch-file Register-FileSystemWatcher 
 new-alias watch watch-file

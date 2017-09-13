@@ -98,7 +98,7 @@ PrivateData = @{
         # LicenseUri = ''
 
         # A URL to the main website for this project.
-        ProjectUri = 'https://github.com/qbikez/ps-entropy'
+        ProjectUri = 'https://github.com/qbikez/ps-entropy/tree/master/src/newtonsoft.json'
 
         # A URL to an icon representing this module.
         # IconUri = ''

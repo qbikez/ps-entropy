@@ -1,4 +1,22 @@
 ﻿
+function get-syncdir() {
+    if (test-path "HKCU:\Software\Microsoft\OneDrive") 
+    {
+        $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
+        if ($prop -ne $null) {
+            $dir = $prop.userfolder
+        }        
+    }
+
+    if ($dir -ne $null) {
+        $syncdir = join-path $dir ".powershell-data"
+        if (!(test-path $syncdir)) {
+            $null = mkdir $syncdir
+        }
+        return $syncdir
+    }
+}
+
 function add-stackitem {
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline=$true)] $what, 

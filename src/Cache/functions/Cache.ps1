@@ -3,6 +3,15 @@ function _SanitizeContainerName([Parameter(Mandatory=$true, ValueFromPipeline=$t
 }
 
 function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data, [Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
+    # check custom providers
+    if ($container.Contains(":")) {
+        $splits = $container.split(":")
+        $provider = $splits[0]
+        if ($null -ne (get-command "export-$($provider)cache" -ErrorAction Ignore)) {
+            return & "export-$($provider)cache" $data $container.Substring($provider.length + 1)
+        }
+    }
+    # default disk cache provider
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
     $container = _SanitizeContainerName $container
@@ -16,6 +25,15 @@ function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data,
 }
 
 function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
+    # check custom providers
+    if ($container.Contains(":")) {
+        $splits = $container.split(":")
+        $provider = $splits[0]
+        if ($null -ne (get-command "import-$($provider)cache" -ErrorAction Ignore)) {
+            return & "import-$($provider)cache" $container.Substring($provider.length + 1)
+        }
+    }
+    # default disk cache provider
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
     $container = _SanitizeContainerName $container
