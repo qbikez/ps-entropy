@@ -12,7 +12,7 @@
 RootModule = 'Remoting.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.2.2'
+ModuleVersion = '0.2.2.999'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -69,7 +69,7 @@ Description = 'Cmdlets helpful in estabilishing remote powershell connections'
 NestedModules = @("Cache")
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = @("Enter-Rdp", "Enter-RemoteSession","New-RemoteSession","Test-Port","Get-RemoteCert", "Find-SessionMap")
+FunctionsToExport = @("Enter-Rdp", "Enter-RemoteSession","New-RemoteSession","Test-Port","Get-RemoteCert", "Find-SessionMap", "copy-sshid")
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = '*'
