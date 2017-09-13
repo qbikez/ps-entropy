@@ -23,15 +23,20 @@ function import-credentials([Parameter(Mandatory=$true)] $container, [Alias("dir
 
 function Get-PasswordCached {
     [CmdletBinding()]
-    param([Parameter(Mandatory=$true)]$container, $message, [switch][bool] $allowuserUI, [switch][bool]$secure) 
+    param([Parameter(Mandatory=$true)]$container, $message, [switch][bool] $allowuserUI, [switch][bool]$secure, [switch][bool]$reset = $false) 
         
-    $cacheDir = "pscredentials"
+        $cacheDir = "pscredentials"
         try {
-            $cred = import-credentials $container -dir $cacheDir
+            $cred = $null
+            if (!$reset) {
+                $cred = import-credentials $container -dir $cacheDir
+            }
             if ($cred -eq $null) { 
+                write-verbose "password not found for container '$container'"
                 if ($allowuserUI) {
-                      $cred = Get-CredentialsCached -container $container -message $message
+                      $cred = Get-CredentialsCached -container $container -message $message -reset:$reset
                 } else {
+                    write-verbose "allowuserUI=$allowuserUI. not asking for credentials"
                     return $null 
                 }
             }
@@ -54,11 +59,14 @@ param([Parameter(Mandatory=$true)]$container, $message, [switch][bool]$reset = $
     $cacheDir = "pscredentials"
     if (!$reset) {
         try {
-        $cred = import-credentials $container -dir $cacheDir
+            $cred = import-credentials $container -dir $cacheDir
         } catch {
         }
+    } else {
+        write-verbose "resetting credentials in container '$container'"
     }
     if ($cred -eq $null) {
+        write-verbose "cached credentials not found in container '$container'"
         import-module Microsoft.PowerShell.Security
         if ($message -eq $null) {
             $message = "Please provide credentials for '$container'"
@@ -67,6 +75,7 @@ param([Parameter(Mandatory=$true)]$container, $message, [switch][bool]$reset = $
             $cred = Get-Credential -Message $message
         }
         else {
+            write-verbose "promptpreference=$($global:promptpreference). not asking for credentials"
             return $null
         }
     }

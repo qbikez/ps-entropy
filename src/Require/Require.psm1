@@ -68,7 +68,7 @@ function Request-Module(
 					}
                     $processModulePath = split-path -parent (gmo Process).path
                     # ensure choco is installed, then install package
-                    run-AsAdmin -ArgumentList @("-Command", "
+                    Invoke-AsAdmin -ArgumentList @("-Command", "
                         try {
                            `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
                         . '$PSScriptRoot\functions\helpers.ps1';
@@ -99,7 +99,7 @@ function Request-Module(
 					}
                     $processModulePath = split-path -parent ((gmo Process).path)
            
-                    run-AsAdmin -ArgumentList @("-Command", "
+                    Invoke-AsAdmin -ArgumentList @("-Command", "
                         try {       
                         `$ex = `$null;              
                         `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
@@ -153,6 +153,8 @@ function Request-Module(
                         Scope = $scope
                         ErrorAction = "Stop"
                     }
+
+
                     if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
                         $p += @{ AllowClobber = $true }  
                     } 
@@ -169,7 +171,7 @@ function Request-Module(
                     if ($scope -eq "CurrentUser") {                       
                         install-module @p
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait       
+                        Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait       
                         if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }                 
                     }
                 }            
@@ -199,11 +201,11 @@ function Request-Module(
                         } catch {
                             write-warning "need to update module as admin"
                             # if module was installed as Admin, try to update as admin
-                            run-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
+                            Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                             if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
                         }
                     } else {
-                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait
+                        Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait
                         if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
 
                     }
@@ -240,7 +242,7 @@ function Request-Module(
                     if ($scope -eq "CurrentUser") {                       
                         install-module @p
                     } else {                      
-                        run-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
+                        Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                         if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }                    
                     }
                     $mo = gmo $_ -ListAvailable    
