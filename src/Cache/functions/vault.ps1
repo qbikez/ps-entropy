@@ -3,7 +3,10 @@ function export-vaultcache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$
 }
 
 function import-vaultcache([Parameter(Mandatory=$true)]$container) {
-    $json = invoke vault read "-format=json" $container -passthru -showoutput:$false | out-string
+    $json = invoke vault read "-format=json" $container -passthru -showoutput:$false -nothrow -passerrorstream | out-string
+    if ($lastexitcode -ne 0) {
+        throw "vault read failed: $json"
+    }
     $data = ConvertFrom-Json $json
     return $data.data
 }
