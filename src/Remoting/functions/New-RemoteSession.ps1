@@ -22,7 +22,7 @@ param(
     if ($bound.ErrorAction -ne $null) { $null = $bound.Remove("ErrorAction")  }
     try {
         $Error.Clear()
-        write-verbose "===> connecting with Negotiate auth method"
+        write-verbose "===> connecting with '$Authentication' auth method"
         $s = $null
 	    $s = _new-remotesession @bound -ErrorAction:SilentlyContinue
     } 
@@ -75,7 +75,6 @@ $credential = [pscredential]::Empty
 ) 
     # ssl is the default
     $use_ssl_by_default = $true
-    
     if ($Ssl.IsPresent) {
         $NoSsl = !$Ssl
     }
@@ -124,8 +123,10 @@ $credential = [pscredential]::Empty
         if ($ServerInfo -ne $null) {
             $ServerInfo.Keys | % { 
                 if ($hash.ContainsKey("-$_")) {
+                    write-verbose "   -$_ = $($ServerInfo[$_]) [from sessionmap]"
                     $hash["-$_"] = $ServerInfo[$_]
                 } elseif (!$_.StartsWith("_") -and $_ -ne "vars") {
+                    write-verbose "   -$_ = $($ServerInfo[$_]) [from sessionmap]"
                     $hash["-$_"] = $ServerInfo[$_]
                 }
             }
@@ -147,17 +148,20 @@ $credential = [pscredential]::Empty
                 $hasSsl = test-port $ComputerName 5986
                 if($hasSsl -and !$NoSsl) {
                     $hash["-UseSSL"] = $true
+                    write-verbose "   -UseSSL = $true [port 5986 is available and nossl=false]"                    
                     $port = 5986
                 } else {
                     $hasPlain = test-port $ComputerName 5985
                     if ($hasPlain) {
                         $hash["-UseSSL"] = $false
+                        write-verbose "   -UseSSL = $false [port 5985 is available and/or nossl=false]"                    
                         $port = 5985
                     } else {
                         throw "no entry in sessionmap for '$computername'. some Default ports are not available (5986[ssl]=$hasSsl and 5985[nossl]=$NoSsl)"
                     }
                 }                    
             } else {
+                write-verbose "   -UseSSL = !$NoSsl [from -nossl:$nossl]"                    
                 $hash["-UseSSL"] = !$NoSsl
             }        
             
@@ -233,8 +237,7 @@ $credential = [pscredential]::Empty
             if ($session -eq $null) { throw "failed to create remote CIM sesssion" }
         } else {
             $opts = New-PSSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck
-            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts        
-            if ($session -eq $null) { throw "failed to create remote powershell sesssion" }
+            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts
             if ($Error.Count -ne 0) {
                 if ($Error[0] -match "SSL certificate is signed by an unknown certificate authority" -or $Error[0].Exception.ErrorCode -eq 12175) {
                     write-host "getting remote cert"
@@ -254,6 +257,8 @@ $credential = [pscredential]::Empty
                 }
             }
         }
+
+        if ($session -eq $null) { throw "failed to create remote powershell sesssion" }        
 
         Write-Verbose "storing session to '$ComputerName' in 'global:$sessionVar'"
         Set-Variable -Name "global:$sessionVar" -Value $session
@@ -401,4 +406,74 @@ function enter-rdp ($name) {
     mstsc $file 
 }
 
+function copy-sshid { 
+    [CmdletBinding()]
+    param($host,$port = 22, $alias, $id)
+
+    $ssh_home = "$env:USERPROFILE\.ssh"
+    if (!(test-path $ssh_home)) { $null = mkdir $ssh_home }
+    if ($id -ne $null) { 
+        $idfile = "$id.pub"
+        $id = "$ssh_home\$idfile"
+    }
+    else {
+        $id = "$ssh_home\id_rsa.pub"
+    }
+    if (!(Test-Path $id)) {
+        & ssh-keygen
+    }
+
+    $cmd = "umask 077; test -d .ssh || mkdir .ssh ; cat >> .ssh/authorized_keys"
+    write-verbose "executing: cmd /c `"ssh $host -p $port `"$cmd`" < $id`""
+    cmd /c "ssh $host -p $port `"$cmd`" < $id"
+
+    $hostname = $host
+    $username = $null
+    if ($hostname -match "(.*)@(.*)") {
+        $username = $matches[1]
+        $hostname = $matches[2]
+    }
+    if ($alias -eq $null) { $alias = $hostname }
+
+    $config = "$ssh_home\config"
+    if (!(test-path $config)) { out-file $config }
+
+    $cfg = @(get-content $config)
+    $found = $cfg | ? { $_ -match "Host $alias" }
+    if ($found) {
+        write-verbose "removing old config for host $alias"
+        $newcfg = @()
+        $startIdx = -1
+        $endIdx = -1
+        for($i = 0; $i -lt $cfg.Length; $i++) {
+            $_ = $cfg[$i]
+            if ($_ -match "Host $alias") {
+                $startIdx = $i
+                continue
+            }
+            if ($startIdx -ge 0 -and $_ -match "Host ") {
+                $endIdx = $i-1
+            }
+            if ($startIdx -lt 0 -or $endIdx -gt 0) {
+                $newcfg += $_
+            }
+        }
+        $cfg = $newcfg
+    }
+    
+    write-verbose "adding ssh config for host $alias"
+    $cfg += "Host $alias"
+    $cfg += "  HostName $hostname"
+    $cfg += "  Port $port"
+    if ($username -ne $null) {
+        $cfg += "  User $username"
+    }
+    if ($idfile -ne $null) {
+        $cfg += "   IdentityFile $idfile"
+    }
+    $cfg | Out-File $config -Encoding ascii
+
+}
+
 new-alias rdp enter-rdp -force
+new-alias ssh-copy-id copy-sshid -force

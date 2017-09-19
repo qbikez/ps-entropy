@@ -8,6 +8,11 @@ $outfile,
 [switch][bool]$accept,
 $certstorelocation
 )
+	if ($computername.StartsWith("https")) {
+		$uri = new-object Uri $computername
+		$computername = $uri.host
+		$port = $uri.Port
+	}
 
 	if ($port -in "powershell","rps","winrm") {
 		$port = 5986
@@ -37,8 +42,19 @@ $certstorelocation
 			param($sender, $certificate, $chain, $sslPolicyErrors) 
 			return $true
 		})
+
+		try {
 		#Force the SSL Connection to send us the certificate
 		$sslStream.AuthenticateAsClient($computerName)
+		} catch {
+			$ex = $_.Exception
+			while($ex -ne $null) {
+				write-warning $ex.Message
+				$ex = $ex.InnerException
+			}
+			throw
+			
+		}
 
 		#Read the certificate
 		$certinfo = New-Object system.security.cryptography.x509certificates.x509certificate2($sslStream.RemoteCertificate)
