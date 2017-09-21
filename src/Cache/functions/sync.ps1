@@ -99,6 +99,14 @@ function Set-GlobalPassword {
         Export-Credentials -container $container -cred $c
     }
 }
+function Remove-GlobalPassword {
+    param($container = "user-settings")   
+ 
+    if ($container -eq "user-settings") { $container = "global-key" }
+    else { $container = "global-key-" + $container }
+
+    Remove-CredentialsCached -container $container
+}
 
 function Update-GlobalPassword {
     [CmdletBinding()]
@@ -239,6 +247,6 @@ function Export-Setting {
     export-cache -data $settings -container $container -dir $syncdir
  
     # make sure settings are imported into global variable
-    $null = import-settings -container $container
+    $null = import-settings -container $container -password $password 
 }
 
