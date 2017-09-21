@@ -44,14 +44,32 @@ function ConvertTo-Hashtable([Parameter(ValueFromPipeline=$true)]$obj, [switch][
 }
 
 
+function Get-SyncDir {
+    param($type = $null)
 
-function Get-SyncDir() {
-    if (test-path "HKCU:\Software\Microsoft\OneDrive") 
-    {
-        $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
-        if ($prop -ne $null) {
-            $dir = $prop.userfolder
-        }        
+    if ($type -eq "onedrive") {
+        if (test-path "HKCU:\Software\Microsoft\OneDrive") 
+        {
+            $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
+            if ($prop -ne $null) {
+                $dir = $prop.userfolder
+            }        
+        }
+    }
+    elseif ($type -eq "local") {
+        $dir = $env:USERPROFILE
+    }
+    elseif ($type -eq $null) {
+        # try default locations. onedrive then local
+        $syncdir = get-syncdir -type onedrive
+        if ($syncdir -eq $null) {
+            write-warning "couldn't find OneDrive synced folder. Using local storage - settings will not be synced across devices."
+            $syncdir = get-syncdir -type local
+        }
+        return $syncdir
+    }
+    else {
+        throw "unrecognized sync dir type: '$type'"
     }
 
     if ($dir -ne $null) {
@@ -95,10 +113,8 @@ function Import-Settings {
     [CmdletBinding()]
     param ()
     $syncdir = get-syncdir
-    if ($syncdir -eq $null) {
-        write-warning "couldn't find OneDrive synced folder"
-        return
-    }
+    if ($syncdir -eq $null) { throw "couldn't determine settings home directory" } 
+    
     $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable 
     
     
@@ -144,10 +160,8 @@ function Export-Setting {
         [Switch][bool]$force
         ) 
     $syncdir = get-syncdir
-    if ($syncdir -eq $null) {
-        write-error "couldn't find OneDrive synced folder"
-        return
-    }
+    if ($syncdir -eq $null) { throw "couldn't determine settings home directory" } 
+        
     $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable
     if ($settings -eq $null) { $settings = @{} }
     if ($settings[$key] -ne $null) {
