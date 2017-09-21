@@ -145,7 +145,7 @@ function Export-Setting {
         ) 
     $syncdir = get-syncdir
     if ($syncdir -eq $null) {
-        write-warning "couldn't find OneDrive synced folder"
+        write-error "couldn't find OneDrive synced folder"
         return
     }
     $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable

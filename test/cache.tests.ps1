@@ -19,20 +19,22 @@ Describe "import/export cache" {
 Describe "import/export settings" {
     It "should recall exported settings" {
         $data = "this is string cache"
-        cache\export-setting -key "test1" -value $data
+        cache\export-setting -key "test1" -value $data -erroraction stop
 
         $imported = Cache\import-settings
 
+        $imported | Should Not BeNullOrEmpty
         $imported["test1"] | Should Be $data
     }
 
     It "should recall exported secure settings" {
         $data = "my-secret-value"
         $data = ConvertTo-SecureString -String $data -AsPlainText -Force
-        $null = cache\export-setting -key "testsecure" -securevalue $data
+        $null = cache\export-setting -key "testsecure" -securevalue $data -erroraction stop
 
         $imported = Cache\import-settings
 
+        $imported | Should Not BeNullOrEmpty
         $value = $imported["testsecure"]
         $value | Should BeOfType [SecureString]
 
