@@ -1,5 +1,5 @@
 
-function get-propertynames($obj) {
+function Get-PropertyNames($obj) {
   #  Measure-function "$($MyInvocation.MyCommand.Name)" {    
         if ($obj -is [System.Collections.IDictionary]) {
             return $obj.keys
@@ -45,7 +45,7 @@ function ConvertTo-Hashtable([Parameter(ValueFromPipeline=$true)]$obj, [switch][
 
 
 
-function get-syncdir() {
+function Get-SyncDir() {
     if (test-path "HKCU:\Software\Microsoft\OneDrive") 
     {
         $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
@@ -64,7 +64,10 @@ function get-syncdir() {
 }
 
 
-function set-globalpassword {
+function Set-GlobalPassword {
+    [CmdletBinding()]
+    param()
+    # should we re-encrypt settings?
     Get-CredentialsCached -message "Global settings password" -reset -container "global-key"
 }
 
@@ -78,17 +81,17 @@ function _getenckey {
     return $enckey
 } 
 
-function new-credentials(
+function New-Credentials(
     [Parameter(Mandatory=$true)]$username, 
     [Parameter(Mandatory=$true)][securestring]$password) {
         return New-Object 'system.management.automation.pscredential' $username,$password
     }
 
-function convertto-plaintext([Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=1)][securestring]$password) {
+function ConvertTo-PlainText([Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=1)][securestring]$password) {
     return (new-credentials $="dummy" $password).GetNetworkCredential().password
 }
 
-function import-settings {
+function Import-Settings {
     [CmdletBinding()]
     param ()
     $syncdir = get-syncdir
@@ -131,13 +134,14 @@ function import-settings {
     return $settings
 }
 
-function export-setting {
-    [CmdletBinding()]
+function Export-Setting {
+    [CmdletBinding(DefaultParameterSetName="plaintext")]
     param(
         [Parameter(Mandatory=$true)] $key, 
-        [Parameter(Mandatory=$true)] $value, 
-        [Switch][bool]$force,
-        [Alias("secure")][Switch][bool]$encrypt
+        [Parameter(Mandatory=$true,ParameterSetName="plaintext")] $value, 
+        [Alias("secure")]
+        [Parameter(Mandatory=$true,ParameterSetName="encrypted")][securestring] $securevalue, 
+        [Switch][bool]$force
         ) 
     $syncdir = get-syncdir
     if ($syncdir -eq $null) {
@@ -152,10 +156,11 @@ function export-setting {
             return
         }
     }
+    $encrypt = $securevalue -ne $null
     write-verbose "storing setting $key=$value at '$syncdir'"
     if ($encrypt) {
         $enckey = _getenckey
-        $secvalue = convertto-securestring $value -asplaintext -force
+        $secvalue = $securevalue
         $encvalue = convertfrom-securestring $secvalue -key $enckey
         $settings[$key] = "enc:$encvalue"
     } else {

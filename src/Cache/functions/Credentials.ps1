@@ -1,5 +1,5 @@
 
-function export-credentials([Parameter(Mandatory=$true)]$container, $cred, [Alias("dir")]$cacheDir = "pscredentials") {
+function Export-Credentials([Parameter(Mandatory=$true)]$container, $cred, [Alias("dir")]$cacheDir = "pscredentials") {
     $pass = $null
     if (![string]::isnullorempty($cred.Password)) { 
         $pass = $cred.Password | ConvertFrom-SecureString
@@ -8,7 +8,7 @@ function export-credentials([Parameter(Mandatory=$true)]$container, $cred, [Alia
     export-cache $result -container $container -dir $cacheDir
 }
 
-function import-credentials([Parameter(Mandatory=$true)] $container, [Alias("dir")]$cacheDir = "pscredentials") {
+function Import-Credentials([Parameter(Mandatory=$true)] $container, [Alias("dir")]$cacheDir = "pscredentials") {
     $lastcred = import-cache $container -dir $cacheDir
     if ($lastcred -ne $null) {
         if (![string]::isnullorempty($lastcred.Password)) {

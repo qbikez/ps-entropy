@@ -2,7 +2,7 @@ function _SanitizeContainerName([Parameter(Mandatory=$true, ValueFromPipeline=$t
     return $container.Replace("\","_").Replace("/","_").Replace(":","_")
 }
 
-function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data, [Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
+function Export-Cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data, [Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     # check custom providers
     if ($container.Contains(":")) {
         $splits = $container.split(":")
@@ -24,7 +24,7 @@ function export-cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data,
     $data | ConvertTo-Json | Out-File $path -Encoding utf8
 }
 
-function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
+function Import-Cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     # check custom providers
     if ($container.Contains(":")) {
         $splits = $container.split(":")
@@ -52,7 +52,7 @@ function import-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandato
     return $data
 }
 
-function remove-cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
+function Remove-Cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
     else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
     $container = _SanitizeContainerName $container
