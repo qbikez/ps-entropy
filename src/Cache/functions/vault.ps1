@@ -2,8 +2,11 @@ function Export-VaultCache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$
     invoke vault write $container "value=$data" -showoutput:$false
 }
 
-function Import-VaultCache([Parameter(Mandatory=$true)]$container) {
-    $json = invoke vault read "-format=json" $container -passthru -showoutput:$false | out-string
+function Import-VaultCache([Parameter(Mandatory=$true)]$container) {    
+    $json = invoke vault read "-format=json" $container -passthru -showoutput:$false -nothrow -passerrorstream | out-string
+    if ($lastexitcode -ne 0) {
+        throw "vault read failed: $json"
+    }
     $data = ConvertFrom-Json $json
     return $data.data
 }
