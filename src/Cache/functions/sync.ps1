@@ -84,15 +84,62 @@ function Get-SyncDir {
 
 function Set-GlobalPassword {
     [CmdletBinding()]
-    param()
-    # should we re-encrypt settings?
-    Get-CredentialsCached -message "Global settings password" -reset -container "global-key"
+    param(
+        $container = "user-settings",
+        [SecureString] $password = $null
+    )
+
+    if ($container -eq "user-settings") { $container = "global-key" }
+    else { $container = "global-key-" + $container }
+    if ($password -eq $null) {
+        # TODO: hash password before storing it - make sure noone can retrieve plaintext password
+        $c = Get-CredentialsCached -message "Global settings password" -reset -container $container
+    } else {
+        $c = new-credentials -username "any" -password $password
+        Export-Credentials -container $container -cred $c
+    }
+}
+
+function Update-GlobalPassword {
+    [CmdletBinding()]
+    param(
+        $container = "user-settings",
+        [SecureString] $password
+        )
+
+    $newpass = $password
+    if ($newpass -eq $null) {
+        $c = Get-Credentials -message "Global settings password" 
+        $newpass = $c.password
+    }
+    # make sure current password is correct - stop on any warning
+    $settings = Import-Settings -container $container -ErrorAction stop -WarningAction stop
+    
+    # reencrypt everything
+    foreach($kvp in $settings.GetEnumerator()) {
+        $key = $kvp.key
+        if ($kvp.value -is [securestring]) {
+            Export-Setting -container $container -key $key -securevalue $kvp.value -password $newpass -force        
+        }         
+    }
+
+    Set-GlobalPassword -container $container -password $newpass
+    $null = Import-Settings -container $container
 }
 
 function _getenckey { 
     [CmdletBinding()]
-    param() 
-    $pass = get-passwordcached -message "Global settings password" -container "global-key" -allowuserui
+    param(
+        [SecureString]$password,
+        $container = "user-settings"
+    ) 
+    $pass = $password
+    if ($container -eq "user-settings") { $container = "global-key" }
+    else { $container = "global-key-" + $container }
+    if ($pass -eq $null) {
+        $pass = get-passwordcached -message "Global settings password" -container $container -allowuserui
+    } 
+    if ($pass -is [SecureString]) {$pass = ConvertTo-PlainText $pass }
     $rfc = new-object System.Security.Cryptography.Rfc2898DeriveBytes $pass,@(1,2,3,4,5,6,7,8),1000            
     $enckey = $rfc.GetBytes(256/8);
     #write-verbose "key=$($enckey | convertto-base64) length=$($enckey.length)"
@@ -101,7 +148,7 @@ function _getenckey {
 
 function New-Credentials(
     [Parameter(Mandatory=$true)]$username, 
-    [Parameter(Mandatory=$true)][securestring]$password) {
+    [Parameter(Mandatory=$true)][SecureString]$password) {
         return New-Object 'system.management.automation.pscredential' $username,$password
     }
 
@@ -111,11 +158,15 @@ function ConvertTo-PlainText([Parameter(Mandatory=$true,ValueFromPipeline=$true,
 
 function Import-Settings {
     [CmdletBinding()]
-    param ()
+    param (
+        [Parameter(Mandatory=$false)] $enckey = $null,
+        [Parameter(Mandatory=$false)][SecureString] $password = $null,
+        $container = "user-settings"
+    )
     $syncdir = get-syncdir
     if ($syncdir -eq $null) { throw "couldn't determine settings home directory" } 
     
-    $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable 
+    $settings = import-cache -container $container -dir $syncdir | convertto-hashtable 
     
     
     if ($settings -eq $null) {
@@ -123,10 +174,10 @@ function Import-Settings {
     }
 
     $decrypted = @{}
+    if ($enckey -eq $null) { $enckey = _getenckey -password $password -container $container }
     foreach($kvp in $settings.GetEnumerator()) {
         if ($kvp.value.startswith("enc:")) {
-            try {
-             $enckey = _getenckey
+            try {                
              $encvalue = $kvp.value.substring("enc:".length)
              $secvalue = convertto-securestring $encvalue -Key $enckey -ErrorAction stop
              $decrypted[$kvp.key] = $secvalue
@@ -145,7 +196,9 @@ function Import-Settings {
     $settings = $decrypted
     write-verbose "imported $($settings.Count) settings from '$syncdir'"
 
-    $global:settings = $settings
+    if ($container -eq "user-settings") {
+        $global:settings = $settings
+    }
 
     return $settings
 }
@@ -157,12 +210,15 @@ function Export-Setting {
         [Parameter(Mandatory=$true,ParameterSetName="plaintext")] $value, 
         [Alias("secure")]
         [Parameter(Mandatory=$true,ParameterSetName="encrypted")][securestring] $securevalue, 
+        [Parameter(Mandatory=$false,ParameterSetName="encrypted")] $enckey = $null,
+        [Parameter(Mandatory=$false,ParameterSetName="encrypted")][SecureString] $password = $null,
+        $container = "user-settings",
         [Switch][bool]$force
         ) 
     $syncdir = get-syncdir
     if ($syncdir -eq $null) { throw "couldn't determine settings home directory" } 
         
-    $settings = import-cache -container "user-settings" -dir $syncdir | convertto-hashtable
+    $settings = import-cache -container $container -dir $syncdir | convertto-hashtable
     if ($settings -eq $null) { $settings = @{} }
     if ($settings[$key] -ne $null) {
         if (!$force) {
@@ -173,15 +229,16 @@ function Export-Setting {
     $encrypt = $securevalue -ne $null
     write-verbose "storing setting $key=$value at '$syncdir'"
     if ($encrypt) {
-        $enckey = _getenckey
+        if ($enckey -eq $null) { $enckey = _getenckey -password $password -container $container }
         $secvalue = $securevalue
         $encvalue = convertfrom-securestring $secvalue -key $enckey
         $settings[$key] = "enc:$encvalue"
     } else {
         $settings[$key] = "$value"
     }
-    export-cache -data $settings -container "user-settings" -dir $syncdir
+    export-cache -data $settings -container $container -dir $syncdir
  
-    import-settings
+    # make sure settings are imported into global variable
+    $null = import-settings -container $container
 }
 
