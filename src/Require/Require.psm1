@@ -9,7 +9,9 @@ function Request-Module(
     [switch][bool] $wait = $false,
     [Parameter()]
     [ValidateSet("AllUsers","CurrentUser","Auto")]
-    [string] $scope = "CurrentUser"
+    [string] $scope = "CurrentUser",
+    [switch][bool] $SkipPublisherCheck,
+    [switch][bool] $AllowClobber = $true
 
 ) {
     import-module process -Global
@@ -155,8 +157,11 @@ function Request-Module(
                     }
 
 
-                    if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                    if ($AllowClobber -and ((get-command install-module).Parameters.AllowClobber) -ne $null) {
                         $p += @{ AllowClobber = $true }  
+                    } 
+                    if ($SkipPublisherCheck -and ((get-command install-module).Parameters.SkipPublisherCheck) -ne $null) {
+                        $p += @{ SkipPublisherCheck = $true }  
                     } 
                     if ($psrepository -ne $null) {
                         $p += @{ Repository = $psrepository }
@@ -225,8 +230,11 @@ function Request-Module(
                         ErrorAction = "Stop"
                         Force = $true
                     }
-                    if (((get-command install-module).Parameters.AllowClobber) -ne $null) {
+                    if ($AllowClobber -and ((get-command install-module).Parameters.AllowClobber) -ne $null) {
                         $p += @{ AllowClobber = $true }  
+                    } 
+                    if ($SkipPublisherCheck -and ((get-command install-module).Parameters.SkipPublisherCheck) -ne $null) {
+                        $p += @{ SkipPublisherCheck = $true }  
                     } 
                     if ($psrepository -ne $null) {
                         $p += @{ Repository = $psrepository }
