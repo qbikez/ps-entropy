@@ -18,16 +18,22 @@ Describe "import/export cache" {
 
 Describe "import/export settings" {
     It "should recall exported settings" {
+        $container = "test123-noencryption"
         $data = "this is string cache"
-        cache\export-setting -key "test1" -value $data -force -erroraction stop
+        cache\export-setting -key "test1" -value $data -container $container  -force -erroraction stop
 
-        $imported = Cache\import-settings
+        $imported = Cache\import-settings -container $container 
 
         $imported | Should Not BeNullOrEmpty
         $imported["test1"] | Should Be $data
     }
+
     It "should get or create global password" {
-        $encKey = cache\_getenckey
+        $container = "test123-enckey"
+        $pass = ConvertTo-SecureString -String "my-secret" -AsPlainText -Force
+        cache\Set-GlobalPassword -container $container -password $pass
+        $encKey = cache\_getenckey -container $container
+        $encKey | Should Not BeNullOrEmpty
     }
 
     It "should not ask for password if password is provided" {

@@ -121,7 +121,7 @@ function Update-GlobalPassword {
         $newpass = $c.password
     }
     # make sure current password is correct - stop on any warning
-    $settings = Import-Settings -container $container -ErrorAction stop -WarningAction stop
+    $settings = Import-Settings -container $container -ErrorAction stop
     
     # reencrypt everything
     foreach($kvp in $settings.GetEnumerator()) {
@@ -182,9 +182,10 @@ function Import-Settings {
     }
 
     $decrypted = @{}
-    if ($enckey -eq $null) { $enckey = _getenckey -password $password -container $container }
+    
     foreach($kvp in $settings.GetEnumerator()) {
         if ($kvp.value.startswith("enc:")) {
+            if ($enckey -eq $null) { $enckey = _getenckey -password $password -container $container }
             try {                
              $encvalue = $kvp.value.substring("enc:".length)
              $secvalue = convertto-securestring $encvalue -Key $enckey -ErrorAction stop
@@ -192,7 +193,7 @@ function Import-Settings {
              #$creds = new-object system.management.automation.pscredential ("dummy",$secvalue)
              #$pass = $creds.getnetworkcredential().password 
             } catch {
-                write-warning "failed to decode key $($kvp.key): $_"
+                write-Error "failed to decode key $($kvp.key): $_"
                 $decrypted[$kvp.key] = $kvp.value
             }
         }
@@ -246,7 +247,9 @@ function Export-Setting {
     }
     export-cache -data $settings -container $container -dir $syncdir
  
-    # make sure settings are imported into global variable
-    $null = import-settings -container $container -password $password 
+    if ($container -eq "user-settings") {
+        # make sure settings are imported into global variable
+        $null = import-settings -container $container -password $password 
+    }
 }
 
