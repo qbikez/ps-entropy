@@ -212,6 +212,16 @@ function Import-Settings {
     return $settings
 }
 
+function Export-Settings {
+    [CmdletBinding(DefaultParameterSetName="plaintext")]
+    param(
+        [Parameter(Mandatory=$true)] $settings, 
+        $container = "user-settings"
+    )
+    $syncdir = get-syncdir
+    export-cache -data $settings -container $container -dir $syncdir
+}
+
 function Export-Setting {
     [CmdletBinding(DefaultParameterSetName="plaintext")]
     param(
