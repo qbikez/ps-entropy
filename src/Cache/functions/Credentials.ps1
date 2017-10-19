@@ -67,12 +67,13 @@ param([Parameter(Mandatory=$true)]$container, $message, [switch][bool]$reset = $
     }
     if ($cred -eq $null) {
         write-verbose "cached credentials not found in container '$container'"
-        import-module Microsoft.PowerShell.Security
+        
         if ($message -eq $null) {
             $message = "Please provide credentials for '$container'"
         }
         if ($global:promptpreference -ne 'SilentlyContinue') {
-            $cred = Get-Credential -Message $message
+            import-module Microsoft.PowerShell.Security -verbose:$false
+            $cred = Microsoft.PowerShell.Security\Get-Credential -Message $message
         }
         else {
             write-verbose "promptpreference=$($global:promptpreference). not asking for credentials"
