@@ -33,10 +33,8 @@ Describe "require module test" {
         if ((gmo $module) -ne $null) { rmo $module }
         req $module -version $version -source choco -package $package
 
-        $env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::Machine) + ";C:\Program Files (x86)\PowerShell Community Extensions\Pscx3" + ";C:\Program Files\PowerShell Community Extensions\Pscx3"
-        
-        $m = gmo $module
-        $m | Should Not benullorempty
+        test-path "${env:ProgramFiles(x86)}\PowerShell Community Extensions\Pscx3" | Should Not BeNullOrEmpty
+        gmo $module | Should Not benullorempty
     }
     It "Should try to upgrade module from choco" {
         $module = "pscx"

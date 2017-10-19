@@ -177,6 +177,7 @@ function Request-Module(
     }
     function Request-ChocoPackage {
         if ($mo -eq $null) {
+            # install 
             $cmd = "Process\invoke choco install -y $package -verbose"
             if ($source.startswith("choco:")) {
                 $customsource = $source.substring("choco:".length)
@@ -201,11 +202,10 @@ function Request-Module(
             if ($LASTEXITCODE -ne 0) { write-error "choco install failed" }
 
             #refresh PSModulePath
-            refresh-modulepath 
-            $mo = gmo $_ -ListAvailable
             # throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
         }
         elseif ($mo.Version[0] -lt $version) {
+            # update
             write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
             # ensure choco is installed, then upgrade package
             $cmd = "Process\invoke choco upgrade -y $package -verbose"
@@ -240,9 +240,13 @@ function Request-Module(
             ") -wait  
             if ($LASTEXITCODE -ne 0) { write-error "choco upgrade failed" }
 
-            refresh-modulepath 
-            $mo = gmo $_ -ListAvailable
         }
+
+        refresh-modulepath 
+        if ($mo -ne $null) { rmo $_ }
+        ipmo $_ -ErrorAction Ignore
+        $mo = gmo $_ -ListAvailable
+
     }
 
     import-module process -Global
