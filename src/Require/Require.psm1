@@ -29,7 +29,7 @@ function Request-Module(
             Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
         }
     }
-    function Request-PowershellModule {
+    function Request-PowershellModule($name) {
         $psrepository = $null
         if ($source.startswith("psgallery:")) {
             $psrepository = $source.substring("psgallery:".Length)
@@ -39,7 +39,7 @@ function Request-Module(
         
         if ($mo -eq $null) {
             $p = @{
-                Name = $_
+                Name = $name
                 Verbose = $true
                 Scope = $scope
                 ErrorAction = "Stop"
@@ -71,8 +71,8 @@ function Request-Module(
         }            
         else {
             # remove module to avoid loading multiple versions                    
-            rmo $_ -erroraction Ignore
-            $toupdate = $_
+            rmo $name -erroraction Ignore
+            $toupdate = $name
             $p = @{
                 Name = $toupdate
                 Verbose = $true
@@ -93,7 +93,13 @@ function Request-Module(
                 try {   
                     ipmo pathutils
                     $path = $mo.path
-                    if (pathutils\test-isjunction (split-path -parent $path)) {
+                    $islinked = $false
+                    try {
+						$islinked = pathutils\test-isjunction (split-path -parent $path)
+                    } catch {
+						write-warning $_.Exception.message
+                    }
+                    if ($islinked) {
                         pathutils\update-modulelink $toupdate -ErrorAction stop
                     } else {
                         update-module @p                                      
@@ -120,16 +126,16 @@ function Request-Module(
 
             }
         }
-        $mo = gmo $_ -ListAvailable | select -first 1   
+        $mo = gmo $name -ListAvailable | select -first 1   
         
         if ($mo -ne $null -and $mo.Version[0] -lt $version) {
             # ups, update-module did not succeed?
             # if module is already installed, oneget will try to update from same repositoty
             # if the repository has changed, we need to force install 
 
-            write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
+            write-warning "requested module $name version $version, but found $($mo.Version[0])!"
             $p = @{
-                Name = $_
+                Name = $name
                 Verbose = $true
                 Scope = $scope
                 ErrorAction = "Stop"
@@ -158,24 +164,24 @@ function Request-Module(
                 Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                 if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }                    
             }
-            $mo = gmo $_ -ListAvailable    
+            $mo = gmo $name -ListAvailable    
         }
 
         if ($mo -eq $null) { 
-            Write-Warning "failed to install module $_ through oneget"
+            Write-Warning "failed to install module $name through oneget"
             Write-Warning "available modules:"
-            $list = find-module $_
+            $list = find-module $name
             $list
         } elseif ($mo.Version[0] -lt $version) {
             Write-Warning "modules found:"
-            $m = find-module $_
+            $m = find-module $name
             $m | Format-Table | Out-String | Write-Warning                    
             Write-Warning "sources:"
             $s = Get-PackageSource
             $s | Format-Table | Out-String | Write-Warning
         }   
     }
-    function Request-ChocoPackage {
+    function Request-ChocoPackage($name) {
         if ($mo -eq $null) {
             # install 
             $cmd = "Process\invoke choco install -y $package -verbose"
@@ -202,11 +208,11 @@ function Request-Module(
             if ($LASTEXITCODE -ne 0) { write-error "choco install failed" }
 
             #refresh PSModulePath
-            # throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
+            # throw "Module $name not found. `r`nSearched paths: $($env:PSModulePath)"
         }
         elseif ($mo.Version[0] -lt $version) {
             # update
-            write-warning "requested module $_ version $version, but found $($mo.Version[0])!"
+            write-warning "requested module $name version $version, but found $($mo.Version[0])!"
             # ensure choco is installed, then upgrade package
             $cmd = "Process\invoke choco upgrade -y $package -verbose"
             if ($source.startswith("choco:")) {
@@ -243,9 +249,9 @@ function Request-Module(
         }
 
         refresh-modulepath 
-        if ($mo -ne $null) { rmo $_ }
-        ipmo $_ -ErrorAction Ignore
-        $mo = gmo $_ -ListAvailable
+        if ($mo -ne $null) { rmo $name }
+        ipmo $name -ErrorAction Ignore
+        $mo = gmo $name -ListAvailable
 
     }
 
@@ -298,10 +304,10 @@ function Request-Module(
             if ($currentversion -ne $null) { write-host "current version of module $_ is $currentversion" }
 			write-warning "module $_ version >= $version not found. installing from $source"
             if ($source -eq "choco" -or $source.startswith("choco:")) {
-                request-chocopackage
+                request-chocopackage -name $_
             }
             if ($source -in "oneget","psget","powershellget","psgallery" -or $source.startswith("psgallery:")) {
-                request-powershellmodule
+                request-powershellmodule -name $_
             }
         
         $found = $mo -ne $null -and $mo.Version[0] -ge $version

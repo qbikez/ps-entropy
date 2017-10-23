@@ -12,7 +12,7 @@
 RootModule = 'Require.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.1.8'
+ModuleVersion = '1.1.9.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -120,3 +120,7 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
+
+
+
+
