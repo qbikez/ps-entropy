@@ -23,10 +23,11 @@ function Import-VaultCache([Parameter(Mandatory=$true)]$container) {
             throw "vault read failed: $json"
         }
         # credentials.ps1 expects password in form of encoded securestring
-        $data = ConvertFrom-Json $json
+        $wrapper = ConvertFrom-Json $json
+        $data = $wrapper.data
         if ($data.password -ne $null) {
-            $data.password = converfrom-securestring (convertto-securestring $data.password -force -AsPlainText)
+            $data.password = convertfrom-securestring (convertto-securestring $data.password -force -AsPlainText)
         }        
-        return $data.data
+        return $data
     } while ($retry)
 }
