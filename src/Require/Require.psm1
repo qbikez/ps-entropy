@@ -14,6 +14,10 @@ function Request-Module(
     [switch][bool] $AllowClobber = $true
 
 ) {
+    $original_version = $version
+    if ($version -eq "latest") {
+        $version = "999.999.999"
+    }
     function init-psget {
          if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
             import-module PackageManagement
@@ -172,7 +176,7 @@ function Request-Module(
             Write-Warning "available modules:"
             $list = find-module $name
             $list
-        } elseif ($mo.Version[0] -lt $version) {
+        } elseif ($mo.Version[0] -lt $version -and $original_version -ne "latest") {
             Write-Warning "modules found:"
             $m = find-module $name
             $m | Format-Table | Out-String | Write-Warning                    
@@ -330,11 +334,19 @@ function Request-Module(
         if (!($mo)) {          
             throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
         }
-        if ($mo.Version[0] -lt $version) {
-            throw "requested module $_ version $version, but found $($mo.Version[0])!"
+        if ($original_version -eq "latest") {
+            Import-Module $_ -DisableNameChecking -Global -ErrorAction stop
+            $mo = gmo $_
+            write-host "lastest version of module $_ : $($mo.version)"
+        }
+        else {
+            if ($mo.Version[0] -lt $version) {
+                throw "requested module $_ version $version, but found $($mo.Version[0])!"
+            }
+            Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global -ErrorAction stop
         }
 
-        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global -ErrorAction stop
+        
         }
 }
 
