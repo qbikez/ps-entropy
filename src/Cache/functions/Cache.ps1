@@ -26,6 +26,7 @@ function Export-Cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data,
 
 function Import-Cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
     # check custom providers
+    if ([string]::IsNullOrEmpty($container)) { throw "container cannot be null or empty" }
     if ($container.Contains(":")) {
         $splits = $container.split(":")
         $provider = $splits[0]

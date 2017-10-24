@@ -117,7 +117,8 @@ function Update-GlobalPassword {
 
     $newpass = $password
     if ($newpass -eq $null) {
-        $c = Get-Credentials -message "Global settings password" 
+        import-module Microsoft.PowerShell.Security -verbose:$false
+        $c = Microsoft.PowerShell.Security\Get-Credential -message "Global settings password" 
         $newpass = $c.password
     }
     # make sure current password is correct - stop on any warning
@@ -160,7 +161,10 @@ function New-Credentials(
         return New-Object 'system.management.automation.pscredential' $username,$password
     }
 
-function ConvertTo-PlainText([Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=1)][securestring]$password) {
+function ConvertTo-PlainText {
+    param (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=1)][securestring]$password
+    )
     return (new-credentials $="dummy" $password).GetNetworkCredential().password
 }
 
@@ -184,6 +188,10 @@ function Import-Settings {
     $decrypted = @{}
     
     foreach($kvp in $settings.GetEnumerator()) {
+        if ($kvp.value -eq $null) {
+            # just skip nulls
+            continue
+        }
         if ($kvp.value.startswith("enc:")) {
             if ($enckey -eq $null) { $enckey = _getenckey -password $password -container $container }
             try {                
@@ -215,7 +223,7 @@ function Import-Settings {
 function Export-Settings {
     [CmdletBinding(DefaultParameterSetName="plaintext")]
     param(
-        [Parameter(Mandatory=$true)] $settings, 
+        [Parameter(Mandatory=$true, ValueFromPipeline=$true)] $settings, 
         $container = "user-settings"
     )
     $syncdir = get-syncdir
