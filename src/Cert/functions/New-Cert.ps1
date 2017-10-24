@@ -105,7 +105,7 @@ $days = 365
     else {    
 
         if (test-path "openssl.config") { remove-item "openssl.config" }
-        copy _openssl.config openssl.config
+        copy "$psscriptroot\_openssl.config" openssl.config -ErrorAction stop
         $lines = (get-content "openssl.config") 
         $lines = $lines | % { $_ -replace "\{cn\}", "$CN" }          
         $lines = $lines | % { $_ -replace "\{openssl_eku\}", "$openssl_eku" }
@@ -114,7 +114,11 @@ $days = 365
         if ($RootAuth) {
             if (!(test-path "$cn.key") -or $force) {
                 write-host ">>> genrsa"
-                openssl genrsa -aes256 -out "$cn.key" 4096
+                $a = @()
+                if (![string]::IsNullOrEmpty($pass)) {
+                    $a += "-aes256"
+                }
+                openssl genrsa  -out "$cn.key" 4096
             }
             write-host ">>> self-sign CA"
             openssl req -new -x509 -days 365 -key "$cn.key" -sha256 -out "$cn.pem" -config .\openssl.config
