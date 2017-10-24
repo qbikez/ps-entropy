@@ -164,7 +164,7 @@ function Request-Module(
                 Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                 if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }                    
             }
-            $mo = gmo $name -ListAvailable    
+            $mo = gmo $name -ListAvailable | sort version -Descending | select -first 1  
         }
 
         if ($mo -eq $null) { 
@@ -285,6 +285,12 @@ function Request-Module(
         }
         $found = $mo -ne $null -and $mo.Version[0] -ge $version
     
+        if ($mo -ne $null) {
+            write-verbose "found module $($mo.name) version $($mo.version). found=$found reload=$reload"
+        }
+        else {
+            write-verbose "module $_ not found"
+        }
 
         if(!$found -and $mo -ne $null) {
             $available = @(gmo $_ -ListAvailable)
@@ -294,7 +300,9 @@ function Request-Module(
             #$found = $available -ne $null
         }
     
-        if ($reload -or ($version -ne $null -and $mo -ne $null -and $mo.Version[0] -lt $version)) {
+        write-verbose "version=$version mo=$mo mo.version=$($mo.Version[0]) requested version = $version"
+        if ($reload -or ($version -ne $null -and $loaded -and $currentversion -lt $version)) {
+            write-verbose "reloading module $_"
             if (gmo $_) { rmo $_ }
         }
 
