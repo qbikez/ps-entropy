@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory=$false)] $newpass = $null,
     [switch][bool] $public,
     [switch][bool] $priv,
+    [Alias("outformat")]
     [ValidateSet("der","pem")]
     $format = "der"
 )
@@ -45,7 +46,7 @@ param(
         }
         elseif ($priv) {
             write-host "converting PRIVATE cert '$certName.pem' to '$certName.pfx', using private key from '$certName.key'"
-            invoke openssl pkcs12 -nodes -export "-out" "$certName.pfx" -inkey "$certName.key" "-in" "$certName.pem" -password "pass:$newpass" -passin "pass:$pass" -verbose:$verbose
+            invoke openssl pkcs12 -nodes -export "-out" "$certName.pfx" -inkey "$certName.key" "-in" "$certName.pem" -password "pass:$newpass"  -passin "pass:$pass" -verbose:$verbose 
             write-host "converting PRIVATE cert '$certName.pem' to '$certName.pvk"
             invoke openssl rsa "-in" "$certName.key" -outform PVK -pvk-strong "-out" "$certName.pvk" -passout "pass:$newpass" -passin "pass:$pass" -verbose:$verbose
         }

@@ -393,17 +393,24 @@ function _get-syncdir() {
 
 
 
-function enter-rdp ($name) {
+function enter-rdp ($name, [switch][bool]$wait) {
     $file = find-rdp $name
+    $p = $null
     if ($file -eq $null -and $name.contains("."))  {
         write-host "running mstsc /v:$name"
-        mstsc /v:$name
-        return
+        $p = Start-Process mstsc /v:$name -PassThru
     }
-    if ($file -eq $null) { throw "rdp profile '$name' not found" }
+    else {
+    
+        if ($file -eq $null) { throw "rdp profile '$name' not found" }
 
-    write-host "running mstsc '$file'..."
-    mstsc $file 
+        write-host "running mstsc '$file'..."
+        $p = Start-Process mstsc $file -PassThru
+    }
+
+    if($wait) {
+        $p.WaitForExit()
+    }
 }
 
 function copy-sshid { 

@@ -388,6 +388,51 @@ function notify {
     }
 }
 
+function foreach-repo ([scriptblock] $ScriptBlock, $argumentList) {
+    foreach($d in (get-childitem . -Directory)) {
+        try {
+            if (test-path "$($d.name)/.hg") {
+                pushd 
+                cd $d.name
+                try {
+                    Invoke-Command -ScriptBlock $ScriptBlock -ArgumentList (@("hg") + $argumentList)
+                } finally {
+                    popd
+                }
+            }
+            if (test-path "$($d.name)/.git") {
+                pushd 
+                cd $d.name
+                try {
+                    Invoke-Command -ScriptBlock $ScriptBlock -ArgumentList (@("git") + $argumentList)
+                } finally {
+                    popd
+                }
+            }
+        } catch {
+            write-error $_
+        }
+    }
+}
+
+function pull-all {
+    foreach-repo {
+        param($command)
+        invoke $command pull
+    }
+}
+
+function update-all ($rev) {
+    foreach-repo {
+        param($command, $rev)
+        if ($command -eq "hg") {
+            invoke $command update $rev
+        } else {
+            Write-Warning "don't know how to git update"
+        }
+    } 
+}
+
 function tryloop {
     param([scriptblock]$cmd, $interval = 1)
     while(1) {
