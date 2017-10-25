@@ -1,26 +1,26 @@
 function Request-Module { 
     [CmdletBinding()]
     param(
-    [Parameter(Mandatory=$true)]
-    $modules, 
-    $version = $null,
-    $package = $null,
-    [switch][bool] $reload,
-    $source = "oneget",
-    [switch][bool] $wait = $false,
-    [Parameter()]
-    [ValidateSet("AllUsers","CurrentUser","Auto")]
-    [string] $scope = "CurrentUser",
-    [switch][bool] $SkipPublisherCheck,
-    [switch][bool] $AllowClobber = $true
+        [Parameter(Mandatory=$true)]
+        $modules, 
+        $version = $null,
+        $package = $null,
+        [switch][bool] $reload,
+        $source = "oneget",
+        [switch][bool] $wait = $false,
+        [Parameter()]
+        [ValidateSet("AllUsers","CurrentUser","Auto")]
+        [string] $scope = "CurrentUser",
+        [switch][bool] $SkipPublisherCheck,
+        [switch][bool] $AllowClobber = $true
+    ) 
 
-) {
     $original_version = $version
     if ($version -eq "latest") {
         $version = "999.999.999"
     }
     
-    import-module process -Global
+    import-module process -Global -Verbose:$false
     if ($scope -eq "Auto") {
         $scope = "CurrentUser"
         if (test-IsAdmin) { $scope = "AllUsers" }
@@ -28,26 +28,33 @@ function Request-Module {
 
     foreach($_ in $modules)
     { 
+        $name = $_
         $currentversion = $null
         $mo = gmo $_
         $loaded = $mo -ne $null
         $found = $loaded
         if ($loaded) { $currentversion = $mo.Version[0] }
-        if ($loaded -and !$reload -and ($mo.Version[0] -ge $version -or $version -eq $null)) { return }
+        if ($loaded -and !$reload -and ($mo.Version[0] -ge $version -or $version -eq $null)) { 
+            write-verbose "module $_ is loaded with version $($mo.version). Nothing to do here"
+            return 
+        }
      
         if (!$loaded) {
             try {
-                write-verbose "trying to load module $_"
-                ipmo $_ -ErrorAction SilentlyContinue -Global
+                write-verbose "module $_ is not loaded. trying to load."
+                ipmo $_ -ErrorAction SilentlyContinue -Global -Verbose:$false
                 $mo = gmo $_
                 $loaded = $mo -ne $null
+                if ($loaded) {
+                    write-verbose "loaded"
+                }
+                
                 $found = $loaded
             } catch {
+                write-verbose "failed to load module $name : $($_.Exception.Message)"
             }
         } 
-        if ($loaded) {
-            write-verbose "module $_ is loaded with version $($mo.version)"
-        }
+        
        
         if(!$found) {
             $mo = gmo $_ -ListAvailable
@@ -67,7 +74,7 @@ function Request-Module {
             $mo = $available
             $matchingVers = @($available | ? { $_.Version -ge $version })
             $found = ($matchingVers.Length -gt 0)
-            write-verbose "found $($matchingVers.count) mathcing versions"
+            write-verbose "found $($matchingVers.count) matching versions from total $($available.count)"
             #$found = $available -ne $null
         }
 
@@ -75,13 +82,17 @@ function Request-Module {
     
         write-verbose "version=$version mo=$mo mo.version=$($mo.Version[0]) requested version = $version"
         if ($reload -or ($version -ne $null -and $loaded -and $currentversion -lt $version)) {
-            write-verbose "reloading module $_"
-            if (gmo $_) { rmo $_ }
+            write-verbose "removing module $_"
+            if (gmo $_) { rmo $_ -Verbose:$false }
         }
      
         function init-psget {
+            if ($global:psgetready) {
+                return
+            }
+            write-verbose "initializing psget"
             if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
-               import-module PackageManagement
+               import-module PackageManagement -Verbose:$false
                $nuget = get-packageprovider -Name Nuget -force -forcebootstrap
                if ($nuget -eq $null) {
                    write-host "installing nuget package provider"
@@ -89,10 +100,11 @@ function Request-Module {
                    install-packageprovider -Name NuGet -Force -MinimumVersion 2.8.5.201 -verbose
                } 
            }
-           import-module powershellget
+           import-module powershellget -Verbose:$false
            if ((get-PSRepository -Name PSGallery).InstallationPolicy -ne "Trusted") {
                Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
            }
+           $global:psgetready = $true
        }
        function RequestPowershellModule($name) {
            $psrepository = $null
@@ -101,6 +113,7 @@ function Request-Module {
            }
            write-warning "trying powershellget package manager repository='$psrepository'"
            init-psget
+           $islinked = $false
            
            if ($mo -eq $null) {
                $p = @{
@@ -121,7 +134,7 @@ function Request-Module {
                    $p += @{ Repository = $psrepository }
                }
                $cmd = "install-module"
-               write-warning "$cmd"                    
+               write-warning "$cmd [scope=$scope]"                       
                foreach($kvp in $p.GetEnumerator()) {
                    $val = $kvp.value
                    if ($val -eq $true) { $val = "`$true" }
@@ -135,6 +148,7 @@ function Request-Module {
                }
            }            
            else {
+               
                # remove module to avoid loading multiple versions                    
                rmo $name -erroraction Ignore
                $toupdate = $name
@@ -153,20 +167,22 @@ function Request-Module {
                    if ($val -eq $true) { $val = "`$true" }
                    $cmd += " -$($kvp.key):$($val)"
                }
-               write-warning "$cmd"                    
+               write-warning "$cmd [scope=$scope]"                    
                if ($scope -eq "CurrentUser") {
                    try {   
-                       ipmo pathutils
-                       $path = $mo.path
-                       $islinked = $false
+                       ipmo pathutils -Verbose:$false
+                       $path = $mo.path                       
                        try {
-                           $islinked = pathutils\test-isjunction (split-path -parent $path)
+                           $target = pathutils\Get-JunctionTarget (split-path -parent $path)
+                           $islinked = $target -ne $null
                        } catch {
                            write-warning $_.Exception.message
                        }
                        if ($islinked) {
+                           write-verbose "module $toupdate is linked to path $target. updating from source control"
                            pathutils\update-modulelink $toupdate -ErrorAction stop
                        } else {
+                            write-verbose "updating module $toupdate"
                            update-module @p                                      
                        }
                    } catch {
@@ -193,7 +209,7 @@ function Request-Module {
            }
            $mo = gmo $name -ListAvailable | select -first 1   
            
-           if ($mo -ne $null -and $mo.Version[0] -lt $version) {
+           if ($mo -ne $null -and $mo.Version[0] -lt $version -and !$islinked) {
                # ups, update-module did not succeed?
                # if module is already installed, oneget will try to update from same repositoty
                # if the repository has changed, we need to force install 
@@ -216,7 +232,7 @@ function Request-Module {
                    $p += @{ Repository = $psrepository }
                }
                $cmd = "install-module"
-               write-warning "trying again: $cmd"
+               write-warning "trying again: $cmd [scope=$scope]"
          
                foreach($kvp in $p.GetEnumerator()) {
                    $val = $kvp.value
@@ -323,9 +339,10 @@ function Request-Module {
        
         if (!$found) {
             . "$PSScriptRoot\functions\helpers.ps1";
-
-            if ($currentversion -ne $null) { write-host "current version of module $_ is $currentversion" }
-			write-warning "module $_ version >= $version not found. installing from $source"
+            
+            $verstring = "not found"
+            if ($currentversion -ne $null) { $verstring = "is not satisfied by current version=$currentversion" }
+			write-warning "module $_ version >= $version $verstring. installing from $source"
             if ($source -eq "choco" -or $source.startswith("choco:")) {
                 requestchocopackage -name $_
             }
