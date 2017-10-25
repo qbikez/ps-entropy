@@ -1,5 +1,6 @@
-                        
-function Request-Module(
+function Request-Module { 
+    [CmdletBinding()]
+    param(
     [Parameter(Mandatory=$true)]
     $modules, 
     $version = $null,
@@ -13,7 +14,7 @@ function Request-Module(
     [switch][bool] $SkipPublisherCheck,
     [switch][bool] $AllowClobber = $true
 
-) {
+) 
     function init-psget {
          if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
             import-module PackageManagement
@@ -65,7 +66,7 @@ function Request-Module(
             if ($scope -eq "CurrentUser") {                       
                 install-module @p
             } else {
-                Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait       
+                process\Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait       
                 if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }                 
             }
         }            
@@ -91,16 +92,42 @@ function Request-Module(
             write-warning "$cmd"                    
             if ($scope -eq "CurrentUser") {
                 try {   
-                    ipmo pathutils
                     $path = $mo.path
                     $islinked = $false
+                    function Get-JunctionTarget([Parameter(Mandatory=$true)]$p_path)
+                    {
+                        fsutil reparsepoint query $p_path | where-object { $_ -imatch 'Print Name:' } | foreach-object { $_ -replace 'Print Name\:\s*','' }
+                    }
+                    
+                    $islinked = $false
                     try {
-						$islinked = pathutils\test-isjunction (split-path -parent $path)
+						if (test-path $path) {
+                            pushd                            
+                            $target = get-junctiontarget $path
+                            $islinked = $target -ne $null                                
+                        }
                     } catch {
 						write-warning $_.Exception.message
                     }
                     if ($islinked) {
-                        pathutils\update-modulelink $toupdate -ErrorAction stop
+                        $target = get-junctiontarget $path
+                        pushd
+                        try {
+                            cd $target
+                            if (".hg","..\.hg","..\..\.hg" | ? { test-path $_ } ) {
+                                write-host "running hg pull in '$target'"
+                                hg pull
+                                hg update
+                            } elseif (".git","..\.git","..\..\.git" | ? { test-path $_ } ) {
+                                write-host "running git pull in '$target'"
+                                git pull
+                            } else {
+                                throw "path '$target' does not contain any recognizable VCS repo (git, hg)"
+                            }
+                        }
+                        finally {
+                            popd
+                        }
                     } else {
                         update-module @p                                      
                     }
@@ -113,7 +140,7 @@ function Request-Module(
                         # "cannot be updated because Administrator rights are required"
                         write-warning "need to update module as admin"
                         # if module was installed as Admin, try to update as admin
-                        Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
+                        process\Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                         if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
                     }
                     else {
@@ -121,12 +148,12 @@ function Request-Module(
                     }
                 }
             } else {
-                Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait
+                process\Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait
                 if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
 
             }
         }
-        $mo = gmo $name -ListAvailable | select -first 1   
+        $mo = gmo $name -ListAvailable | sort Version -desc | select -first 1   
         
         if ($mo -ne $null -and $mo.Version[0] -lt $version) {
             # ups, update-module did not succeed?
@@ -161,7 +188,7 @@ function Request-Module(
             if ($scope -eq "CurrentUser") {                       
                 install-module @p
             } else {                      
-                Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
+                process\Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
                 if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }                    
             }
             $mo = gmo $name -ListAvailable    
@@ -191,7 +218,7 @@ function Request-Module(
             }
             $processModulePath = split-path -parent (gmo Process).path
             # ensure choco is installed, then install package
-            Invoke-AsAdmin -ArgumentList @("-Command", "
+            process\Invoke-AsAdmin -ArgumentList @("-Command", "
                 try {
                    `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
                 . '$PSScriptRoot\functions\helpers.ps1';
@@ -211,6 +238,7 @@ function Request-Module(
             # throw "Module $name not found. `r`nSearched paths: $($env:PSModulePath)"
         }
         elseif ($mo.Version[0] -lt $version) {
+
             # update
             write-warning "requested module $name version $version, but found $($mo.Version[0])!"
             # ensure choco is installed, then upgrade package
@@ -221,7 +249,7 @@ function Request-Module(
             }
             $processModulePath = split-path -parent ((gmo Process).path)
    
-            Invoke-AsAdmin -ArgumentList @("-Command", "
+            process\Invoke-AsAdmin -ArgumentList @("-Command", "
                 try {       
                 `$ex = `$null;              
                 `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
@@ -255,7 +283,7 @@ function Request-Module(
 
     }
 
-    import-module process -Global
+    import-module process -Global -Verbose:$false
     if ($scope -eq "Auto") {
         $scope = "CurrentUser"
         if (test-IsAdmin) { $scope = "AllUsers" }
@@ -268,20 +296,28 @@ function Request-Module(
         $loaded = $mo -ne $null
         $found = $loaded
         if ($loaded) { $currentversion = $mo.Version[0] }
-        if ($loaded -and !$reload -and ($mo.Version[0] -ge $version -or $version -eq $null)) { return }
+        if ($loaded -and !$reload -and ($mo.Version[0] -ge $version -or $version -eq $null)) {
+            write-verbose "module $_ is loaded with version $($mo.version). Nothing to update."
+            return 
+        }
 
         if (!$loaded) {
             try {
+                write-verbose "trying to load module $_"
                 ipmo $_ -ErrorAction SilentlyContinue -Global
                 $mo = gmo $_
                 $loaded = $mo -ne $null
                 $found = $loaded
             } catch {
             }
+        } 
+        if ($loaded) {
+            write-verbose "module $_ is loaded with version $($mo.version)"
         }
 
         if(!$found) {
             $mo = gmo $_ -ListAvailable
+            write-verbose "module $_ not found"
         }
         $found = $mo -ne $null -and $mo.Version[0] -ge $version
     
@@ -291,6 +327,7 @@ function Request-Module(
             $mo = $available
             $matchingVers = @($available | ? { $_.Version -ge $version })
             $found = ($matchingVers.Length -gt 0)
+            write-verbose "found $($matchingVers.count) mathcing versions"
             #$found = $available -ne $null
         }
     
@@ -325,8 +362,8 @@ function Request-Module(
         if ($mo.Version[0] -lt $version) {
             throw "requested module $_ version $version, but found $($mo.Version[0])!"
         }
-
-        Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global -ErrorAction stop
+            write-verbose "importing module $_ MinimumVersion $version"
+            Import-Module $_ -DisableNameChecking -MinimumVersion $version -Global -ErrorAction stop
         }
 }
 
