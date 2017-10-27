@@ -483,4 +483,6 @@ function copy-sshid {
 }
 
 new-alias rdp enter-rdp -force
-new-alias ssh-copy-id copy-sshid -force
+new-alias ssh-copy-id copy-sshid -forceew
+new-alias init-ssh copy-sshid -force
+new-alias new-sshhost copy-sshid -force
