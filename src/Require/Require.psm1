@@ -57,7 +57,7 @@ function Request-Module {
         
        
         if(!$found) {
-            $mo = gmo $_ -ListAvailable
+            $mo = gmo $_ -ListAvailable | sort version -Descending
             write-verbose "module $_ not found"
         }
         $found = $mo -ne $null -and $mo.Version[0] -ge $version
@@ -70,17 +70,17 @@ function Request-Module {
         }
 
         if(!$found -and $mo -ne $null) {
-            $available = @(gmo $_ -ListAvailable)
+            $available = @(gmo $_ -ListAvailable | sort version -Descending)
             $mo = $available
             $matchingVers = @($available | ? { $_.Version -ge $version })
             $found = ($matchingVers.Length -gt 0)
             write-verbose "found $($matchingVers.count) matching versions from total $($available.count)"
             #$found = $available -ne $null
         }
-
        
-    
-        write-verbose "version=$version mo=$mo mo.version=$($mo.Version[0]) requested version = $version"
+        if ($mo -ne $null) {
+            write-verbose "version=$version mo=$mo mo.version=$($mo.Version[0]) requested version = $version"
+        }
         if ($reload -or ($version -ne $null -and $loaded -and $currentversion -lt $version)) {
             write-verbose "removing module $_"
             if (gmo $_) { rmo $_ -Verbose:$false }
@@ -207,7 +207,7 @@ function Request-Module {
    
                }
            }
-           $mo = gmo $name -ListAvailable | select -first 1   
+           $mo = gmo $name -ListAvailable | sort version -Descending | select -first 1   
            
            if ($mo -ne $null -and $mo.Version[0] -lt $version -and !$islinked) {
                # ups, update-module did not succeed?
@@ -332,8 +332,6 @@ function Request-Module {
            refresh-modulepath 
            if ($mo -ne $null) { rmo $name }
            ipmo $name -ErrorAction Ignore
-           $mo = gmo $name -ListAvailable
-   
        }
    
        
@@ -349,8 +347,9 @@ function Request-Module {
             if ($source -in "oneget","psget","powershellget","psgallery" -or $source.startswith("psgallery:")) {
                 RequestPowershellModule -name $_
             }
-        
-        $found = $mo -ne $null -and $mo.Version[0] -ge $version
+            
+            $mo = gmo $name -ListAvailable | sort version -Descending
+            $found = $mo -ne $null -and $mo.Version[0] -ge $version
         } else {
             if (($matchingvers -ne $null) -and ($matchingvers.count -ge 0)) {
                 ipmo $_ -MinimumVersion $version

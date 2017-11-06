@@ -26,7 +26,7 @@ Describe "require module test" {
 
 Describe "require module test" {
     It "Should load required module from choco" {
-        try {
+        #try {
             $module = "pscx"
             $version = "3.2.0"
             $package = " pscx"
@@ -36,9 +36,9 @@ Describe "require module test" {
 
             test-path "${env:ProgramFiles(x86)}\PowerShell Community Extensions\Pscx3" | Should Not BeNullOrEmpty
             gmo $module | Should Not benullorempty
-        } catch {
-            Set-TestInconclusive -Message "something's wrong with pscx install from choco"
-        }
+        #} catch {
+            #Set-TestInconclusive -Message "something's wrong with pscx install from choco"
+        #}
     }
     It "Should try to upgrade module from choco" {
         try {
