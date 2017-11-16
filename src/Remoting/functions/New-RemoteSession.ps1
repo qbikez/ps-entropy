@@ -237,7 +237,7 @@ $credential = [pscredential]::Empty
             if ($session -eq $null) { throw "failed to create remote CIM sesssion" }
         } else {
             $opts = New-PSSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck
-            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts
+            $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts            
             if ($Error.Count -ne 0) {
                 if ($Error[0] -match "SSL certificate is signed by an unknown certificate authority" -or $Error[0].Exception.ErrorCode -eq 12175) {
                     write-host "getting remote cert"
@@ -254,6 +254,17 @@ $credential = [pscredential]::Empty
                     $err = @()
                     $error | % { $err += $_ }
                     throw $error[0]
+                }
+            }
+
+            if ($session -ne $null) {
+                try {
+                write-verbose "storing application private data"
+                $session.ApplicationPrivateData.Port = $port
+                $session.ApplicationPrivateData.Auth = $Authentication.ToString()
+                $session.ApplicationPrivateData.Ssl = !$NoSsl
+                } catch {
+                    write-warning "failed to store custom properties in sesion.ApplicationPrivateData: $($_.Exception.Message)"
                 }
             }
         }
@@ -411,6 +422,12 @@ function enter-rdp ($name, [switch][bool]$wait) {
     if($wait) {
         $p.WaitForExit()
     }
+}
+
+function init-rps {
+    [CmdletBinding()] 
+    param($host, $port, [switch][bool] $nossl)
+
 }
 
 function copy-sshid { 
