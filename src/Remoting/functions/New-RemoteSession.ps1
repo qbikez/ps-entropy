@@ -415,8 +415,10 @@ function enter-rdp ($name, [switch][bool]$wait) {
 
 function copy-sshid { 
     [CmdletBinding()]
-    param($host,$port = 22, $alias, $id)
+    param($host, $port = $null, $alias, $id)
 
+    $org_port = $port
+    if ($port -eq $null) { $port = 22 }
     $ssh_home = "$env:USERPROFILE\.ssh"
     if (!(test-path $ssh_home)) { $null = mkdir $ssh_home }
     if ($id -ne $null) { 
@@ -427,9 +429,11 @@ function copy-sshid {
         $id = "$ssh_home\id_rsa.pub"
     }
     if (!(Test-Path $id)) {
+        write-verbose "id_rda.pub not found. generating"
         & ssh-keygen
     }
-
+    write-verbose "using id file: '$id'"
+    
     $cmd = "umask 077; test -d .ssh || mkdir .ssh ; cat >> .ssh/authorized_keys"
     write-verbose "executing: cmd /c `"ssh $host -p $port `"$cmd`" < $id`""
     cmd /c "ssh $host -p $port `"$cmd`" < $id"
@@ -457,6 +461,18 @@ function copy-sshid {
             if ($_ -match "Host $alias") {
                 $startIdx = $i
                 continue
+            }
+            if ($startIdx -ge 0 -and $endIdx -lt 0) {
+                # copy hostname and port from existing settings
+                if ($_ -match "Hostname (.*)") {
+                    $hostname = $matches[1]
+                }
+                if ($_ -match "Port (.*)" -and $org_port -eq $null) {
+                    $port = $matches[1]
+                }
+                if ($_ -match "User (.*)" -and $username -eq $null) {
+                    $port = $matches[1]
+                }
             }
             if ($startIdx -ge 0 -and $_ -match "Host ") {
                 $endIdx = $i-1
