@@ -2,6 +2,7 @@ function Export-VaultCache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$
     invoke vault write $container "value=$data" -showoutput:$false
 }
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText")]
 function Import-VaultCache([Parameter(Mandatory=$true)]$container) {    
     $retry = $true
     do {
@@ -28,9 +29,9 @@ function Import-VaultCache([Parameter(Mandatory=$true)]$container) {
         if ($data.password -ne $null) {
             # build the securestring instead of using convertto-securestring with plain text, as psscriptanalyzer don't like this 
             # and we really have to create a securestring from plain text
-            $secpass = new-object securestring
-            $data.password.tochararray() | % { $secpass.AppendChar($_) }
-            # $secpass = convertto-securestring $data.password -force -AsPlainText
+            #$secpass = new-object securestring
+            #$data.password.tochararray() | % { $secpass.AppendChar($_) }
+            $secpass = convertto-securestring $data.password -force -AsPlainText
             $data.password = convertfrom-securestring $secpass
         }        
         return $data
