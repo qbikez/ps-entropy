@@ -2,8 +2,10 @@ function Export-VaultCache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$
     invoke vault write $container "value=$data" -showoutput:$false
 }
 
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText")]
-function Import-VaultCache([Parameter(Mandatory=$true)]$container) {    
+
+function Import-VaultCache {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText")]
+    param([Parameter(Mandatory=$true)]$container) 
     $retry = $true
     do {
         $json = invoke vault read "-format=json" $container -passthru -showoutput:$false -nothrow -passerrorstream | out-string
