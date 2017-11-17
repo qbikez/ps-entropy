@@ -76,9 +76,10 @@ $days = 365
             if (!$selfSigned) {
             }
             if ($RootAuth) {
-
+                write-host ">>> makecert root self-signed"
                 makecert -r -pe -n "CN=$CN" -cy authority -sv "$certName.pvk" "$certName.cer" 
             } else {
+                write-host ">>> makecert self-signed"
                 makecert -r -pe -n "CN=$CN" -eku "$EKU" -sky exchange -sv "$certName.pvk" "$certName.cer" 
             }
         }
@@ -86,6 +87,7 @@ $days = 365
             if (!(test-path "$ca.cer") -or !(test-path "$ca.pvk")) {
                 throw "Certificate Authirity key files ($ca.cer or $ca.pvk) not found!"
             }
+            write-host ">>> makecert sign with $ca.pvk"
             $r = invoke makecert.exe "-pe" "-n" "CN=$CN" "-a" sha1 -sky exchange -eku $EKU -ic "$ca.cer" -iv "$ca.pvk" `
                 -b 01/01/1970 "-sp" "Microsoft RSA SChannel Cryptographic Provider" -sy 12 `
                 -sv "$certName.pvk" "$certName.cer" -passthru -verbose -is my
@@ -118,10 +120,10 @@ $days = 365
                 if (![string]::IsNullOrEmpty($pass)) {
                     $a += "-aes256"
                 }
-                openssl genrsa  -out "$cn.key" 4096
+                invoke openssl genrsa "-out" "$cn.key" 4096
             }
             write-host ">>> self-sign CA"
-            openssl req -new -x509 -days 365 -key "$cn.key" -sha256 -out "$cn.pem" -config .\openssl.config
+            invoke openssl req -new -x509 -days 365 -key "$cn.key" -sha256 "-out" "$cn.pem" -config .\openssl.config
             return
         }
 
@@ -131,23 +133,23 @@ $days = 365
         if ([string]::IsNullOrEmpty($pass)) {
                 $pass = "123"
                 try {
-                    openssl genrsa -des3 -out "$certName.key" -passout "pass:$pass" 2048
-                    openssl rsa -in "$certName.key" -out "$certName.key" -passin "pass:$pass"
+                    invoke openssl genrsa -des3 "-out" "$certName.key" -passout "pass:$pass" 2048
+                    invoke openssl rsa "-in" "$certName.key" "-out" "$certName.key" -passin "pass:$pass"
                 } finally {
                     $pass = ""
                 }
             } else 
             {
-                openssl genrsa -des3 -out "$certName.key" -passout "pass:$pass" 2048 
+                invoke openssl genrsa -des3 "-out" "$certName.key" -passout "pass:$pass" 2048 
             }
         }
 
         write-host ">>> newreq"
-        openssl req -new -newkey rsa:2048 -key "$certName.key" -out "$certName.csr" -config .\openssl.config -passin "pass:$pass"  -extensions $openssl_ext
+        invoke openssl req -new -newkey rsa:2048 -key "$certName.key" "-out" "$certName.csr" -config .\openssl.config -passin "pass:$pass"  -extensions $openssl_ext
 
         write-host ">>> x509 sign"
         if ($selfSigned) {    
-            openssl req -x509 -newkey rsa:2048 -key "$certName.key" -out "$certName.pem" -days 365  -extensions $openssl_ext
+            invoke openssl req -x509 -newkey rsa:2048 -key "$certName.key" "-out" "$certName.pem" -days 365  -extensions $openssl_ext -config .\openssl.config
         }
         else {            
             $a = @()
@@ -157,14 +159,14 @@ $days = 365
             if ($serverauth) {
                 $a += "-CAcreateserial"
             }
-            openssl x509 -req "-in" "$certName.csr" -CA "$ca.pem" -CAkey "$ca.key"  "-out" "$certName.pem" -trustout -extfile .\openssl.config -extensions $openssl_Ext -days $days $a #-extfile .\openssl.config 
+            invoke openssl x509 -req "-in" "$certName.csr" -CA "$ca.pem" -CAkey "$ca.key"  "-out" "$certName.pem" -trustout -extfile .\openssl.config -extensions $openssl_Ext -days $days $a #-extfile .\openssl.config 
         }
         #openssl ca -in "$certName.csr" -keyfile "legimica.key" -out "$certName.pem"  -cert "legimica.pem"  
         #-CAcreateserial 
         write-host ">>> x509 pem -> der"
-        openssl x509 -outform der -in "$certName.pem" -out "$certName.der" 
+        invoke openssl x509 -outform der "-in" "$certName.pem" "-out" "$certName.der" 
         write-host ">>> pkcs12 pem + key -> pfx"
-        openssl pkcs12 -export -out "$certName.pfx" -inkey "$certName.key" -in "$certName.pem" -password "pass:$pass" -passin "pass:$pass"   
+        invoke openssl pkcs12 -export "-out" "$certName.pfx" -inkey "$certName.key" "-in" "$certName.pem" -password "pass:$pass" -passin "pass:$pass"   
     }
 
 
