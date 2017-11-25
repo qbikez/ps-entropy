@@ -153,6 +153,7 @@ $credential = [pscredential]::Empty
                 } else {
                     $hasPlain = test-port $ComputerName 5985
                     if ($hasPlain) {
+                        $NoSsl = $true
                         $hash["-UseSSL"] = $false
                         write-verbose "   -UseSSL = $false [port 5985 is available and/or nossl=false]"                    
                         $port = 5985
@@ -164,8 +165,11 @@ $credential = [pscredential]::Empty
                 write-verbose "   -UseSSL = !$NoSsl [from -nossl:$nossl]"                    
                 $hash["-UseSSL"] = !$NoSsl
             }        
-            
-             
+        }
+
+        if ($port -eq $null) {
+            if ($NoSsl) { $port = 5985 }
+            else { $port = 5986 }
         }
 
         if ($ClearCredentials) {
@@ -224,6 +228,7 @@ $credential = [pscredential]::Empty
         $Error.Clear()
         write-verbose "connecting with parameters:"
         $hash | format-table -AutoSize | out-string -Stream | write-verbose
+        
 
         $session = $null
         if ($cim) {
@@ -232,11 +237,14 @@ $credential = [pscredential]::Empty
                 $hash.Remove("-UseSSL") 
             }
             $opts = New-CimSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck -UseSsl:$(!$nossl)
-            
+            write-verbose "session options:"
+            $opts | format-table -AutoSize | out-string -Stream | write-verbose
             $session = New-CimSession @hash -SessionOption $opts 
             if ($session -eq $null) { throw "failed to create remote CIM sesssion" }
         } else {
             $opts = New-PSSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck
+            write-verbose "session options:"
+            $opts | format-table -AutoSize | out-string -Stream | write-verbose
             $session = New-PSSession @hash -ErrorAction:$ErrorActionPreference -SessionOption $opts            
             if ($Error.Count -ne 0) {
                 if ($Error[0] -match "SSL certificate is signed by an unknown certificate authority" -or $Error[0].Exception.ErrorCode -eq 12175) {
@@ -303,24 +311,61 @@ function Test-Port
         [ValidateSet("TCP", "UDP")]
         [string]
         $Protocol = "TCP",
-        $timeout = 1000
+        $timeout = 1000,
+        [System.Net.Sockets.AddressFamily] $AddressFamily = [System.Net.Sockets.AddressFamily]::Unspecified
         )
 
     $RemoteServer = If ([string]::IsNullOrEmpty($ComputerName)) {$IPAddress} Else {$ComputerName};
 
+    $ip = $IPAddress
+    if (!([string]::IsNullOrEmpty($ComputerName)) ) {
+        $ipv4 = "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"
+        $ipv6 = "([0-9a-fA-F]+:){7}[0-9a-fA-F]"
+        if ($ComputerName -notmatch $ipv4 -and $ComputerName -notmatch $ipv6) {
+            $ips = Resolve-DnsName $computername -ErrorAction Ignore 
+            if ($ip -eq $null) { 
+                throw "could not resolve host $computername"
+            }
+            $ips | select -ExpandProperty IPAddress | % {  [System.Net.IPAddress]::Parse($_) }
+            if ($AddressFamily -ne [System.Net.Sockets.AddressFamily]::Unspecified) {
+                $ip = $ips | ? { $_.AddressFamily -eq $AddressFamily }
+                if ($ip -eq $null) {
+                    throw "hostname $computername does not resolve to an address in family $AddressFamily"
+                }
+            }
+            else {
+                $ip = $ips | select -first 1               
+            }
+
+        } else {
+            $ip = [System.Net.IPAddress]::Parse($ComputerName)
+        }
+    }
+
+    if ($AddressFamily -eq [System.Net.Sockets.AddressFamily]::Unspecified) {
+        $AddressFamily = $ip.AddressFamily
+    }
+    
     If ($Protocol -eq 'TCP')
     {
-        $test = New-Object System.Net.Sockets.TcpClient;
+        $test = New-Object System.Net.Sockets.TcpClient $AddressFamily
         Try
         {            
-            Write-verbose "Connecting to $RemoteServer :$Port (TCP)..";
-            $r = $test.BeginConnect($RemoteServer, $Port, $null, $null);
-            $s = $r.AsyncWaitHandle.WaitOne([timespan]::FromMilliseconds($timeout));
+            Write-verbose "Connecting to $RemoteServer [$ip] :$Port ($protocol $AddressFamily).."
+            $r = $test.BeginConnect($ip, $Port, $null, $null)
+            $s = $r.AsyncWaitHandle.WaitOne([timespan]::FromMilliseconds($timeout))
             if (!$s) {
                 throw "connection timed out after $timeout"
             }
-            Write-verbose "Connection successful";
-            return $true
+            $test.EndConnect($r)
+            if ($test.Connected) {
+                Write-verbose "Connection successful";
+            }
+            else {
+                Write-Verbose "failed to connect";
+            }
+            
+            return $test.Connected
         }
         Catch
         {
@@ -428,6 +473,7 @@ function init-rps {
     [CmdletBinding()] 
     param($host, $port, [switch][bool] $nossl)
 
+    $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl
 }
 
 function copy-sshid { 
