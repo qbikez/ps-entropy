@@ -102,7 +102,7 @@ $credential = [pscredential]::Empty
         }
         $found = $false
         if ($global:psSessionsMap -ne $null) {
-            $null = ipmo publishmap -Verbose:$false
+            $null = ipmo publishmap -Verbose:$false           
             $ServerInfo = get-entry $ComputerName -map $global:psSessionsMap 
             $found = $ServerInfo -ne $null
         }
@@ -323,10 +323,10 @@ function Test-Port
         $ipv6 = "([0-9a-fA-F]+:){7}[0-9a-fA-F]"
         if ($ComputerName -notmatch $ipv4 -and $ComputerName -notmatch $ipv6) {
             $ips = Resolve-DnsName $computername -ErrorAction Ignore 
-            if ($ip -eq $null) { 
+            if ($ips -eq $null) { 
                 throw "could not resolve host $computername"
             }
-            $ips | select -ExpandProperty IPAddress | % {  [System.Net.IPAddress]::Parse($_) }
+            $ips = $ips | select -ExpandProperty IPAddress | % {  [System.Net.IPAddress]::Parse($_) }
             if ($AddressFamily -ne [System.Net.Sockets.AddressFamily]::Unspecified) {
                 $ip = $ips | ? { $_.AddressFamily -eq $AddressFamily }
                 if ($ip -eq $null) {
@@ -337,12 +337,19 @@ function Test-Port
                 $ip = $ips | select -first 1               
             }
 
+            write-verbose "hostname $computername resolved to IP: $ip"
+
         } else {
+            write-verbose "treating $ComputerName as IP"
             $ip = [System.Net.IPAddress]::Parse($ComputerName)
         }
     }
 
+    if ($ip -eq $null) {
+        throw "ip not found"
+    }
     if ($AddressFamily -eq [System.Net.Sockets.AddressFamily]::Unspecified) {
+        write-verbose "auto-assigning address family: '$($ip.AddressFamily)'"
         $AddressFamily = $ip.AddressFamily
     }
     
@@ -469,11 +476,32 @@ function enter-rdp ($name, [switch][bool]$wait) {
     }
 }
 
-function init-rps {
+function add-rpsEntry {
     [CmdletBinding()] 
-    param($host, $port, [switch][bool] $nossl)
+    param($host, $port, $alias, [switch][bool] $nossl, [switch][bool] $force)
 
+    $map = find-sessionmap -reload:$true
     $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl
+    if ($alias -eq $null) { $alias = $host }
+    if ($session -ne $null) {        
+        if ($map[$alias] -eq $null -or $force) {
+            $map[$alias] = @{
+                ComputerName = $host
+                UseSsl = !$nossl
+            }
+            if ($port -ne $null) {
+                $map[$alias].Port = $port
+            }
+            if ($Global:psSessionsMapPath -ne $null -and [System.IO.Path]::GetExtension($Global:psSessionsMapPath) -eq ".json") {
+                req newtonsoft.json
+                write-verbose "saving session map at $Global:psSessionsMapPath"
+                copy-item $Global:psSessionsMapPath "$Global:psSessionsMapPath.bak"
+                $map | ConvertTo-JsonNewtonsoft | Out-File $Global:psSessionsMapPath
+            }
+        } else {
+            write-warning "host $alias already exists in seessionmap. Use -Force to override"
+        }
+    }
 }
 
 function copy-sshid { 
@@ -565,3 +593,4 @@ new-alias rdp enter-rdp -force
 new-alias ssh-copy-id copy-sshid -force
 new-alias init-ssh copy-sshid -force
 new-alias new-sshhost copy-sshid -force
+new-alias init-rps add-rpsEntry

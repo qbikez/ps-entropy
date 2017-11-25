@@ -69,7 +69,7 @@ Description = 'Cmdlets helpful in estabilishing remote powershell connections'
 NestedModules = @("Cache")
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = @("Enter-Rdp", "Enter-RemoteSession","New-RemoteSession","Test-Port","Get-RemoteCert", "Find-SessionMap", "copy-sshid")
+FunctionsToExport = @("Enter-Rdp", "Enter-RemoteSession","New-RemoteSession","Test-Port","Get-RemoteCert", "Find-SessionMap", "copy-sshid", "add-rpsentry")
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = '*'
