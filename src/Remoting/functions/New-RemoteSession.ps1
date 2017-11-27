@@ -481,9 +481,20 @@ function add-rpsEntry {
     param($host, $port, $alias, [switch][bool] $nossl, [switch][bool] $force)
 
     $map = find-sessionmap -reload:$true
-    $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl
     if ($alias -eq $null) { $alias = $host }
+
+    $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $host" -container "$alias.cred" -verbose
+    if ($cred -eq $null) {
+        throw "credentials are required for remote connection to '$host', but there are no cached credentials in container '$alias.cred'!"
+    }
+
+    $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl -credential:$cred
     if ($session -ne $null) {        
+        $sessionPort = $session.ApplicationPrivateData.Port
+        if ($sessionPort -ne $null) { $port = $sessionPort }
+        $sessionSsl = $session.ApplicationPrivateData.Ssl
+        if ($sessionSsl -ne $null) { $nossl = !$sessionSsl }
+
         if ($map[$alias] -eq $null -or $force) {
             $map[$alias] = @{
                 ComputerName = $host
