@@ -489,7 +489,8 @@ function add-rpsEntry {
     }
 
     $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl -credential:$cred
-    if ($session -ne $null) {        
+    if ($session -ne $null) {
+        set-variable "$alias" -Scope global -Value $session
         $sessionPort = $session.ApplicationPrivateData.Port
         if ($sessionPort -ne $null) { $port = $sessionPort }
         $sessionSsl = $session.ApplicationPrivateData.Ssl
@@ -512,6 +513,7 @@ function add-rpsEntry {
         } else {
             write-warning "host $alias already exists in seessionmap. Use -Force to override"
         }
+        $session | Enter-PSSession
     }
 }
 
