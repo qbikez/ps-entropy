@@ -476,14 +476,28 @@ function enter-rdp ($name, [switch][bool]$wait) {
     }
 }
 
+function Add-WinRMTrustedHost {
+    param($host)
+
+    $trusted = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
+    if ($host -notin $trusted.Split(",") -and "*" -ne $trusted) {
+        Set-Item WSMan:\localhost\Client\TrustedHosts -Value "$host" -Concatenate -Force
+    }
+}
+
 function add-rpsEntry {
     [CmdletBinding()] 
-    param($host, $port, $alias, [switch][bool] $nossl, [switch][bool] $force)
+    param($host, $port, $alias, [switch][bool] $nossl, [switch][bool] $force, [switch][bool] $ClearCredentials)
 
+    $trust = $true
     $map = find-sessionmap -reload:$true
     if ($alias -eq $null) { $alias = $host }
 
-    $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $host" -container "$alias.cred" -verbose
+    if ($trust) {
+       Add-WinRMTrustedHost $host
+    }
+
+    $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $host" -container "$alias.cred" -reset:$ClearCredentials -verbose
     if ($cred -eq $null) {
         throw "credentials are required for remote connection to '$host', but there are no cached credentials in container '$alias.cred'!"
     }
