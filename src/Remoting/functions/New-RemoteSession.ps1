@@ -491,6 +491,7 @@ function add-rpsEntry {
 
     $trust = $true
     $map = find-sessionmap -reload:$true
+    
     if ($alias -eq $null) { $alias = $host }
 
     if ($trust) {

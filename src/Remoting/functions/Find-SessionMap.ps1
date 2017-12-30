@@ -34,6 +34,12 @@ param ([switch][bool] $reload = $true)
     } else {
         write-verbose "global session map exists. NOT looking for sessionmap.ps1"
     }
+
+    if ($Global:psSessionsMap -eq $null) {
+        $Global:psSessionsMap = @{}
+        $Global:psSessionsMapPath = "$($searchdirs[0])/$($searchfiles[0])"
+        Write-Verbose "no session map found. new session map will be stored at '$Global:psSessionsMapPath'"
+    }
     
     return $Global:psSessionsMap
 }
