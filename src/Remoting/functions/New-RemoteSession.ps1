@@ -610,4 +610,4 @@ new-alias rdp enter-rdp -force
 new-alias ssh-copy-id copy-sshid -force
 new-alias init-ssh copy-sshid -force
 new-alias new-sshhost copy-sshid -force
-new-alias init-rps add-rpsEntry
+new-alias init-rps add-rpsEntry -Force

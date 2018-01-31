@@ -27,14 +27,20 @@ on_failure:
 on_finish:
 - ps: 'write-host "event: build finish!"'
 
+# TODO: only push modules that changed
 deploy_script:
 - ps: $branch = $env:APPVEYOR_REPO_BRANCH; write-host "Branch=$branch"
 - ps: >-
     $branch = $env:APPVEYOR_REPO_BRANCH;
-    if ($branch -eq "master") { 
-        scripts/lib/push.ps1 . -buildno $env:APPVEYOR_BUILD_NUMBER; 
-    } else { 
-        write-warning "not deploying from branch $branch";
+    $autodeploy = $false
+    if ($autodeploy) {
+        if ($branch -eq "master") { 
+            scripts/lib/push.ps1 . -buildno $env:APPVEYOR_BUILD_NUMBER; 
+        } else { 
+            write-warning "not deploying from branch $branch";
+        }
+    } else {
+        write-warning "autodeploy disabled"
     }
 
 
