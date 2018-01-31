@@ -16,6 +16,38 @@ param(
     [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
     [switch][bool] $reloadSessionMap = $false
 )  
+DynamicParam {    
+    # try {
+    #     $paramDictionary = new-object -Type System.Management.Automation.RuntimeDefinedParameterDictionary
+
+    #     $paramname = "ComputerName"
+    #     $paramType = [string]
+
+    #     $attributes = new-object System.Management.Automation.ParameterAttribute
+    #     $attributes.Mandatory = $true
+    #     $attributes.Position = 0
+    #     $attributeCollection = new-object -Type System.Collections.ObjectModel.Collection[System.Attribute]
+    #     $attributeCollection.Add($attributes)
+
+    #     $map = find-sessionmap -reload:$reloadSessionMap
+    #     $validvalues = @()
+    #     if ($map -ne $null) {
+    #         $validvalues = $map.Keys
+    #     }
+    #     $validateset = new-object System.Management.Automation.ValidateSetAttribute -ArgumentList @($validvalues)
+    #     $attributeCollection.Add($validateset)
+
+    #     $dynParam1 = new-object -Type System.Management.Automation.RuntimeDefinedParameter($paramname, $paramType, $attributeCollection)
+        
+    #     $paramDictionary.Add($paramname, $dynParam1)
+
+    #     return $paramDictionary
+    # }
+    # catch {
+    #     write-host $_
+    # }
+}
+process {
     $map = find-sessionmap -reload:$reloadSessionMap
     $bound = $PSBoundParameters
     if ($bound.reloadSessionMap -ne $null) { $null = $bound.Remove("reloadSessionMap")  }
@@ -55,6 +87,7 @@ param(
     }
 
     return $s
+}
 }
 
 function _New-RemoteSession {
@@ -485,13 +518,21 @@ function Add-WinRMTrustedHost {
     }
 }
 
+function get-rpsEntry {
+    param($name)
+    $map = find-sessionmap -reload:$true
+    if ($name -eq $null) {
+        return $map.Keys
+    }
+}
+
 function add-rpsEntry {
     [CmdletBinding()] 
     param($host, $port, $alias, [switch][bool] $nossl, [switch][bool] $force, [switch][bool] $ClearCredentials)
 
     $trust = $true
     $map = find-sessionmap -reload:$true
-    
+
     if ($alias -eq $null) { $alias = $host }
 
     if ($trust) {
@@ -530,6 +571,20 @@ function add-rpsEntry {
         }
         $session | Enter-PSSession
     }
+}
+
+function get-sshEntry {
+    param()
+    
+    $ssh_home = "$env:USERPROFILE\.ssh"
+    if (!(test-path $ssh_home)) { $null = mkdir $ssh_home }
+    
+    $config = "$ssh_home\config"
+    if (!(test-path $config)) { out-file $config }
+
+    $cfg = @(get-content $config)
+    $found = $cfg | ? { $_ -match "Host $alias" }
+    $found
 }
 
 function copy-sshid { 
@@ -617,8 +672,14 @@ function copy-sshid {
 
 }
 
+
+#Register-TabExpansion 'Enter-RemoteSession' @{
+#    'ComputerName' = { $map = find-sessionmap; if ($map -ne $null) { return $map.Keys } }
+# }
+
 new-alias rdp enter-rdp -force
 new-alias ssh-copy-id copy-sshid -force
 new-alias init-ssh copy-sshid -force
 new-alias new-sshhost copy-sshid -force
 new-alias init-rps add-rpsEntry
+
