@@ -476,10 +476,14 @@ set-alias rps Enter-RemoteSession
 function _get-syncdir() {
     if (test-path "HKCU:\Software\Microsoft\OneDrive") 
     {
-        $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
-        if ($prop -ne $null) {
-            $dir = $prop.userfolder
-        }        
+        try {
+            $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder" -ErrorAction Ignore
+            if ($prop -ne $null) {
+                $dir = $prop.userfolder
+            }        
+        } catch {
+            write-warning $_
+        }
     }
 
     return $dir
@@ -681,5 +685,4 @@ new-alias rdp enter-rdp -force
 new-alias ssh-copy-id copy-sshid -force
 new-alias init-ssh copy-sshid -force
 new-alias new-sshhost copy-sshid -force
-new-alias init-rps add-rpsEntry
-
+new-alias init-rps add-rpsEntry -Force
