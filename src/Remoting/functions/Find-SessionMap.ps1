@@ -3,7 +3,7 @@ function Find-SessionMap {
 param ([switch][bool] $reload = $true) 
      if ($Global:psSessionsMap -eq $null -or $reload) {
         write-verbose "looking for psSessionsMap"
-        $searchdirs = "$home\Documents\WindowsPowerShell","$home\Documents","$(_get-syncdir)","$(_get-syncdir)\Documents"
+        $searchdirs = "$home\Documents\WindowsPowerShell","$home\Documents","$(_get-syncdir)","$(_get-syncdir)\Documents" | ? { ![string]::IsNullOrEmpty($_) }
         $searchfiles = "pssessionmap.json","sessionmap.config.ps1"
         $searchPaths = $searchfiles | % { $f = $_; $searchdirs | % { join-path $_ $f } }
         foreach($p in $searchPaths) {

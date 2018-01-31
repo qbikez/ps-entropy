@@ -50,10 +50,14 @@ function Get-SyncDir {
     if ($type -eq "onedrive") {
         if (test-path "HKCU:\Software\Microsoft\OneDrive") 
         {
-            $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
-            if ($prop -ne $null) {
-                $dir = $prop.userfolder
-            }        
+            try {
+                $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
+                if ($prop -ne $null) {
+                    $dir = $prop.userfolder
+                }        
+            } catch {
+                write-warning $_.exception.message
+            }
         }
     }
     elseif ($type -eq "local") {

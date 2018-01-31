@@ -443,10 +443,14 @@ set-alias rps Enter-RemoteSession
 function _get-syncdir() {
     if (test-path "HKCU:\Software\Microsoft\OneDrive") 
     {
-        $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder"
-        if ($prop -ne $null) {
-            $dir = $prop.userfolder
-        }        
+        try {
+            $prop = get-itemproperty "HKCU:\Software\Microsoft\OneDrive\" "UserFolder" -ErrorAction Ignore
+            if ($prop -ne $null) {
+                $dir = $prop.userfolder
+            }        
+        } catch {
+            write-warning $_
+        }
     }
 
     return $dir
