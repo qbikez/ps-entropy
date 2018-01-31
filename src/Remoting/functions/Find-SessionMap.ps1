@@ -10,7 +10,6 @@ param ([switch][bool] $reload = $true)
             if (test-path $p) {
                 write-verbose "found sessionmap at $p"
                 if ([System.IO.Path]::GetExtension($p) -eq ".json") {
-                    ipmo publishmap -Verbose:$false -ErrorAction Stop
                     $map = get-content $p | convertfrom-json
                     if ($map -isnot [hashtable]) {
                         $map = ConvertTo-Hashtable $map
