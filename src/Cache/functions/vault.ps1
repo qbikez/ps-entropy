@@ -4,7 +4,7 @@ function Export-VaultCache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$
 
 
 function Import-VaultCache {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText")]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSAvoidUsingConvertToSecureStringWithPlainText", "")]
     param([Parameter(Mandatory=$true)]$container) 
     $retry = $true
     do {
