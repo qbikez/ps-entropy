@@ -74,7 +74,7 @@ process {
     }
     if ($Error.Count -gt 0 -or $s -eq $null) {
         write-verbose "===> fallback: connecting with manual credentials"
-        #$bound["Authentication"] = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic
+        $bound["Authentication"] = [System.Management.Automation.Runspaces.AuthenticationMechanism]::Basic
         try {
             $s = _new-remotesession @bound -ErrorAction:Continue 
         } catch {
@@ -108,13 +108,19 @@ $credential = [pscredential]::Empty
 ) 
     # ssl is the default
     $use_ssl_by_default = $true
+    $usessl = $null
+    $usesslSource = ""
     if ($Ssl.IsPresent) {
-        $NoSsl = !$Ssl
+        $usessl = $true
+        $usesslSource = "-SSL"
+    }
+    elseif ($NoSsl.IsPresent) {
+        $usessl = $false
+        $usesslSource = "-noSSL"
     }
     elseif (!$NoSsl.IsPresent) {
-        $NoSsl = !$use_ssl_by_default
-        if ($port -eq 5985) { $NoSsl = $true }
-        if ($port -eq 5986) { $NoSsl = $false }
+        if ($port -eq 5985) { $usessl = $true; $usesslSource = "-port $port" }
+        if ($port -eq 5986) { $usessl = $false; $usesslSource = "-port $port" }
     }    
 
     $sessionVar = $ComputerName
@@ -130,7 +136,6 @@ $credential = [pscredential]::Empty
 
     
         $hash = @{ 
-            "-UseSSL" = !$NoSsl
             "-ComputerName" = $ComputerName
         }
         $found = $false
@@ -165,44 +170,52 @@ $credential = [pscredential]::Empty
             }
 
             
-            if ($ServerInfo.UseSSL -ne $null) { $NoSsl = !$ServerInfo.UseSSL  }
-            if ($ServerInfo.Port -ne $null) { $port = $ServerInfo.Port }
+            if ($ServerInfo.UseSSL -ne $null -and $usessl -eq $null) { $usessl = $ServerInfo.UseSSL; ; $usesslSource = "[from sessionmap]"  }
+            if ($ServerInfo.Port -ne $null -and $port -eq $null) { $port = $ServerInfo.Port }
 
             if ($port -eq $null) {
-                if ($nossl) {
-                    $port = 5985
+                if ($usessl) {
+                    $port = 5986                    
                 } else {
-                    $port = 5986
+                    $port = 5985
                 }
             }
+
+            $hash["-UseSSL"] = $usessl
         } else {             
 
             if ($port -eq $null) {
                 $hasSsl = test-port $ComputerName 5986
-                if($hasSsl -and !$NoSsl) {
-                    $hash["-UseSSL"] = $true
+                if($hasSsl -and $usessl) {
+                    $hash["-UseSSL"] = $usessl
+                    $usesslSource = "port 5986 is available"
                     write-verbose "   -UseSSL = $true [port 5986 is available and nossl=false]"                    
                     $port = 5986
                 } else {
                     $hasPlain = test-port $ComputerName 5985
                     if ($hasPlain) {
-                        $NoSsl = $true
-                        $hash["-UseSSL"] = $false
+                        $usessl = $false
+                        $usesslSource = "port 5985 is available"
+                        $hash["-UseSSL"] = $usessl
                         write-verbose "   -UseSSL = $false [port 5985 is available and/or nossl=false]"                    
                         $port = 5985
                     } else {
-                        throw "no entry in sessionmap for '$computername'. some Default ports are not available (5986[ssl]=$hasSsl and 5985[nossl]=$NoSsl)"
+                        throw "no entry in sessionmap for '$computername'. some Default ports are not available (5986[ssl]=$hasSsl and 5985[nossl]=$hasplain)"
                     }
                 }                    
             } else {
-                write-verbose "   -UseSSL = !$NoSsl [from -nossl:$nossl]"                    
-                $hash["-UseSSL"] = !$NoSsl
+                if ($usessl -eq $null) {
+                    $usessl = $use_ssl_by_default
+                    $usesslSource = "default SSL: $use_ssl_by_default"
+                }
+                write-verbose "   -UseSSL = $usessl [$usesslSource]"
+                $hash["-UseSSL"] = $usessl
             }        
         }
 
         if ($port -eq $null) {
-            if ($NoSsl) { $port = 5985 }
-            else { $port = 5986 }
+            if ($usessl) { $port = 5986 }
+            else { $port = 5985 }
         }
 
         if ($ClearCredentials) {
@@ -269,7 +282,7 @@ $credential = [pscredential]::Empty
             if ($hash.ContainsKey("-UseSSL")) { 
                 $hash.Remove("-UseSSL") 
             }
-            $opts = New-CimSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck -UseSsl:$(!$nossl)
+            $opts = New-CimSessionOption -SkipRevocationCheck -SkipCACheck -SkipCNCheck -UseSsl:$usessl
             write-verbose "session options:"
             $opts | format-table -AutoSize | out-string -Stream | write-verbose
             $session = New-CimSession @hash -SessionOption $opts 
@@ -303,7 +316,7 @@ $credential = [pscredential]::Empty
                 write-verbose "storing application private data"
                 $session.ApplicationPrivateData.Port = $port
                 $session.ApplicationPrivateData.Auth = $Authentication.ToString()
-                $session.ApplicationPrivateData.Ssl = !$NoSsl
+                $session.ApplicationPrivateData.Ssl = $usessl
                 } catch {
                     write-warning "failed to store custom properties in sesion.ApplicationPrivateData: $($_.Exception.Message)"
                 }
@@ -443,21 +456,37 @@ function Test-Port
 
 
 function Enter-RemoteSession {
+[CmdletBinding(DefaultParameterSetName="default")]
 param(
-[parameter(Mandatory=$true)] $ComputerName,
-[switch][bool] $NoSsl,
-[switch][bool] $Ssl,
-[switch][bool] $ClearCredentials,
-$port,
-[switch][bool] $Reuse = $true,
-[switch][bool] $reloadSessionMap = $true,
-[switch][bool] $NoEnter = $false,
-[switch][bool] $cim,
-[pscredential]
-[System.Management.Automation.Credential()]
-$credential = [PSCredential]::Empty
-) 
+    [Parameter(Mandatory=$true, ParameterSetName="default", Position=0)] 
+    [Parameter(Mandatory=$false, ParameterSetName="list", Position=0)] 
+    $ComputerName,
+    [switch][bool] $NoSsl,
+    [switch][bool] $Ssl,
+    [switch][bool] $ClearCredentials,
+    $port,
+    [switch][bool] $Reuse = $true,
+    [switch][bool] $reloadSessionMap = $true,
+    [switch][bool] $NoEnter = $false,
+    [switch][bool] $cim,
+    [Parameter(ParameterSetName="list")]
+    [switch][bool] $list,
+    [pscredential]
+    [System.Management.Automation.Credential()]
+    $credential = [PSCredential]::Empty
+)
     $bound = $PSBoundParameters
+
+    if ($list) {
+        $map = Find-SessionMap
+        if ($ComputerName -ne $null) {
+            return $map[$computername]
+        }
+        else {
+            return $map`
+        }
+    }
+
     $null = $bound.Remove("NoEnter") 
     $s = new-remotesession @bound
     if ($s -eq $null) {
@@ -470,8 +499,7 @@ $credential = [PSCredential]::Empty
     }
 }
 
-set-alias rps Enter-RemoteSession 
-
+set-alias rps Enter-RemoteSession
 
 function _get-syncdir() {
     if (test-path "HKCU:\Software\Microsoft\OneDrive") 
@@ -593,7 +621,7 @@ function get-sshEntry {
 
 function copy-sshid { 
     [CmdletBinding()]
-    param($host, $port = $null, $alias, $id)
+    param($host, $port = $null, $username, $alias, $id)
 
     $org_port = $port
     if ($port -eq $null) { $port = 22 }
@@ -614,10 +642,10 @@ function copy-sshid {
     
     $cmd = "umask 077; test -d .ssh || mkdir .ssh ; cat >> .ssh/authorized_keys"
     write-verbose "executing: cmd /c `"ssh $host -p $port `"$cmd`" < $id`""
-    cmd /c "ssh $host -p $port `"$cmd`" < $id"
+    $idstring = get-content $id | out-string
+    invoke "ssh" "$host" "-p" "$port" $cmd -in $idstring
 
     $hostname = $host
-    $username = $null
     if ($hostname -match "(.*)@(.*)") {
         $username = $matches[1]
         $hostname = $matches[2]
