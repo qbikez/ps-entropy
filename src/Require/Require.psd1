@@ -12,7 +12,7 @@
 RootModule = 'Require.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.1.13'
+ModuleVersion = '1.1.14'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -66,7 +66,7 @@ Description = 'Facilitates module installation and update'
 # FormatsToProcess = @()
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-RequiredModules = @("Process","Pathutils")
+RequiredModules = @("Process","PathUtils")
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @("Request-Module")

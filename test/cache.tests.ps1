@@ -1,9 +1,9 @@
 import-module pester
 
-if (gmo require) { rmo require }
+if (gmo require) { rmo require -force }
 import-module $psscriptroot\..\src\require\require.psm1 -verbose
 
-if (gmo cache) { rmo cache }
+if (gmo cache) { rmo cache -force }
 import-module $psscriptroot\..\src\cache\cache.psm1 -verbose
 
 Describe "import/export cache" {
