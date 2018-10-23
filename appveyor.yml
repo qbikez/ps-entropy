@@ -32,7 +32,7 @@ deploy_script:
 - ps: $branch = $env:APPVEYOR_REPO_BRANCH; write-host "Branch=$branch"
 - ps: >-
     $branch = $env:APPVEYOR_REPO_BRANCH;
-    $autodeploy = $false
+    $autodeploy = $false;
     if ($autodeploy) {
         if ($branch -eq "master") { 
             scripts/lib/push.ps1 . -buildno $env:APPVEYOR_BUILD_NUMBER; 
@@ -40,7 +40,7 @@ deploy_script:
             write-warning "not deploying from branch $branch";
         }
     } else {
-        write-warning "autodeploy disabled"
+        write-warning "autodeploy disabled";
     }
 
 
