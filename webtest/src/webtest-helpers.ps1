@@ -214,9 +214,9 @@ function Test-Url
                     $total = 0
                     $s = $resp.GetResponseStream()
                     do {
-                    $read = $s.Read($bytes, $total, $bytes.Length - $total)
-                    if ($read -le 0) { break }
-                    $total += $read
+                        $read = $s.Read($bytes, $total, $bytes.Length - $total)
+                        if ($read -le 0) { break }
+                        $total += $read
                     } while ($total -lt $bytes.Length)
                     $respContent =  [System.Text.Encoding]::UTF8.GetString($bytes)
                 }
@@ -253,7 +253,14 @@ function Test-Url
             }
             finally {
                 if ($webclient -ne $null) { try { $webclient.Dispose()} catch {} }
-                if ($resp -ne $null -and $dispose) { try  { $resp.dispose() } catch {} }
+                if ($resp -ne $null) { 
+                    if ($dispose) {
+                        try  { $resp.dispose() } catch {} 
+                    }
+                    else {
+                        try  { $resp.close() } catch {} 
+                    }
+                }
             }
         }
 
@@ -280,6 +287,6 @@ function Invoke-Url {
     [CmdletBinding()]
     param($url)
 
-    $r = test-url $url
+    $r = test-url $url -dispose:$false
     return $r
 }

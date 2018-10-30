@@ -1,17 +1,5 @@
-import-module pester
-
 if (gmo require) { rmo require -force }
-import-module $psscriptroot\..\src\require\require.psm1 -verbose
-#import-module "$PSScriptRoot/../third-party/pester"  
-
-
-Describe "oneliners module test" {
-    
-    It "Should load properly" {
-        { import-module "$psscriptroot\..\src\oneliners\oneliners.psm1" -ErrorAction Stop } | should not throw
-        gmo oneliners | should not benullorempty
-    }
-}
+import-module $psscriptroot\..\src\require.psm1 -verbose
 
 Describe "require module test" {
     It "Should load required module" {
@@ -21,11 +9,8 @@ Describe "require module test" {
         $m = gmo $module
         $m | Should Not benullorempty
     }
-}
 
-
-Describe "require module test" {
-    It "Should load required module from choco" {
+   It "Should load required module from choco" {
         #try {
             $module = "carbon"
             $version = "2.5.0"
@@ -61,5 +46,3 @@ Describe "require module test" {
         # ok, at least we tried
     }
 }
-
-new-alias slack send-slack -force

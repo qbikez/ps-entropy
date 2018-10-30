@@ -18,7 +18,7 @@ install:
 build_script:
 - ps: write-host "no need to build powershell"
 test_script:
-- ps: scripts/lib/test.appveyor.ps1
+- ps: scripts/test.appveyor.ps1
 
 on_success:
 - ps: 'write-host "event: build success!"'
