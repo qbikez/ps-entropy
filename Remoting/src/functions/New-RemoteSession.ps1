@@ -561,7 +561,14 @@ function get-rpsEntry {
 
 function add-rpsEntry {
     [CmdletBinding()] 
-    param($host, $port, $alias, [switch][bool] $nossl, [switch][bool] $force, [switch][bool] $ClearCredentials)
+    param(
+        $host, 
+        $port, 
+        $alias, 
+        [switch][bool] $nossl, 
+        [switch][bool] $force, 
+        [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
+        [switch][bool] $ClearCredentials)
 
     $trust = $true
     $map = find-sessionmap -reload:$true
@@ -577,7 +584,7 @@ function add-rpsEntry {
         throw "credentials are required for remote connection to '$host', but there are no cached credentials in container '$alias.cred'!"
     }
 
-    $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl -credential:$cred
+    $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl -credential:$cred -Authentication:$Authentication -Reuse:(!$force)
     if ($session -ne $null) {
         set-variable "$alias" -Scope global -Value $session
         $sessionPort = $session.ApplicationPrivateData.Port
@@ -589,6 +596,7 @@ function add-rpsEntry {
             $map[$alias] = @{
                 ComputerName = $host
                 UseSsl = !$nossl
+                Auth = $Authentication.ToString()
             }
             if ($port -ne $null) {
                 $map[$alias].Port = $port

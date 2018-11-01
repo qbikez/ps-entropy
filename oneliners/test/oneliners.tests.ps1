@@ -1,5 +1,12 @@
-import-module $psscriptroot\..\src\oneliners\oneliners.psm1 -verbose
+import-module $psscriptroot\..\src\oneliners.psm1 -verbose
 
+Describe "oneliners module test" {
+    
+    It "Should load properly" {
+        { import-module "$psscriptroot\..\src\oneliners.psm1" -ErrorAction Stop } | should not throw
+        gmo oneliners | should not benullorempty
+    }
+}
 Describe "stack unit tests" {
     It "pushed item should be on top of the stack" {
         $it1 = "item 1"

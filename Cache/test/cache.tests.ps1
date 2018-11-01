@@ -1,10 +1,7 @@
 import-module pester
 
-if (gmo require) { rmo require }
-import-module $psscriptroot\..\src\require\require.psm1 -verbose
-
-if (gmo cache) { rmo cache }
-import-module $psscriptroot\..\src\cache\cache.psm1 -verbose
+if (gmo cache) { rmo cache -force }
+import-module $psscriptroot\..\src\cache.psm1 -verbose
 
 Describe "import/export cache" {
     It "should recall exported cache as string" {

@@ -24,7 +24,7 @@ function Copy-RemoteFile {
             @{ 
                 Hash = (get-filehash $_.FullName).Hash
                 FullName = $_.fullname
-                RelativePath = $_.FullName.Replace($source, "")
+                RelativePath = Get-PathRelative -from $source -to  $_.FullName
             }
         }
     }
@@ -79,14 +79,12 @@ function Copy-RemoteFile {
         $a = @{}
         if ($tosession -ne $null) { $a.ToSession = $tosession }
         if ($srvHash -eq $null -or $srvHash -ne $hash) {
+            $targetDir = (join-path $target (split-path -parent $f.RelativePath))
             write-verbose "file hashes differ: local($hash) != remote($srvhash) for file $source -> $($srvinfo.fullname)"
-           # if ($recurse) {
-           #     $source = $source.trimend("/").trimend("\") + "/*"
-           #     cp -path "$source" -destination $target @a -Recurse:$recurse -Force:$force -Container:$recurse -ErrorAction Stop 
-           # }
-           # else {
-                cp -LiteralPath $f.Fullname -destination $target @a -Recurse:$recurse -Force:$force -Container:$recurse -ErrorAction Stop 
-           # }
+            if ($targetDir -ne $target) {
+                invoke-command -session $tosession -ScriptBlock { if (!(test-path $using:targetDir)) { $null = mkdir $using:targetDir } }
+            }
+            cp -LiteralPath $f.Fullname -destination $targetDir @a -Recurse:$recurse -Force:$force -Container:$recurse -ErrorAction Stop -Verbose:($VerbosePreference -eq "Continue")
         } else {
             write-verbose "skipping unmodified file $source"
         }

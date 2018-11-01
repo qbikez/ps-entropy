@@ -5,6 +5,7 @@ version: 1.0.{build}
 install:
 - git submodule update --init --recursive
 - ps: scripts/lib/init.ps1 .
+- ps: scripts/init.ps1 .
 - ps: scripts/lib/restore.ps1 .
 - ps: scripts/restore.ps1
 
@@ -18,7 +19,7 @@ install:
 build_script:
 - ps: write-host "no need to build powershell"
 test_script:
-- ps: scripts/lib/test.appveyor.ps1
+- ps: scripts/test.appveyor.ps1
 
 on_success:
 - ps: 'write-host "event: build success!"'
@@ -32,7 +33,7 @@ deploy_script:
 - ps: $branch = $env:APPVEYOR_REPO_BRANCH; write-host "Branch=$branch"
 - ps: >-
     $branch = $env:APPVEYOR_REPO_BRANCH;
-    $autodeploy = $false
+    $autodeploy = $false;
     if ($autodeploy) {
         if ($branch -eq "master") { 
             scripts/lib/push.ps1 . -buildno $env:APPVEYOR_BUILD_NUMBER; 
@@ -40,7 +41,7 @@ deploy_script:
             write-warning "not deploying from branch $branch";
         }
     } else {
-        write-warning "autodeploy disabled"
+        write-warning "autodeploy disabled";
     }
 
 
