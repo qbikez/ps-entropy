@@ -3,7 +3,7 @@ version: 1.0.{build}
 #- ps: 'write-host "cloning... this replaces default clone method"'
 
 install:
-- set PATH=C:\Ruby25-x64\bin;%PATH%
+- set PATH=C:\Ruby25\bin;%PATH%
 - git submodule update --init --recursive
 - ps: scripts/lib/init.ps1 .
 - ps: scripts/init.ps1 .
