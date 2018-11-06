@@ -260,15 +260,20 @@ param(
     $argumentList,
     $timeout = 120,
     [switch][bool] $http,
-    [switch][bool] $captureOutput = $true
+    [switch][bool] $captureOutput = $true,
+    $outfile,
+    [Alias("errorfile")]
+    $errfile,
+    $infile
 ) 
     $auto = $true
     $exec = split-path -leaf $path
     $start = get-date
 
-    $outfile = "$($exec)-stdout.txt"
-    $errfile = "$($exec)-stderr.txt"
-  
+    if ($outfile -eq $null) { $outfile = "$($exec)-stdout.txt" }
+    if ($errfile -eq $null) { $errfile = "$($exec)-stderr.txt" }
+    if ($infile -eq $null) { $infile = "$($exec)-stdin.txt" }
+
     try {
         if ((test-path $path)) {
             $path = (get-item $path).FullName    
@@ -299,10 +304,17 @@ param(
                 $a += @{
                     RedirectStandardOutput=$outfile 
                     RedirectStandardError=$errfile
+                    RedirectStandardInput=$infile
+                }
+                if (!(test-path $infile)) {
+                    "" > $infile
                 }
             }
 
-            $app = start-process -WorkingDirectory "." -FilePath "$path" @a -PassThru 
+            $app = start-process -WorkingDirectory "." -FilePath "$path" @a -PassThru
+            if ($captureOutput) {
+
+            }
             #$app | format-table | out-string | Write-Warning     
 
             # should return $app even if further testing fails, so we can kill hanging processes
@@ -320,6 +332,16 @@ param(
 
         $elapsed = (get-date) - $start
         write-host "$exec is up and running after $elapsed"
+    }
+    catch {
+        if ($app -ne $null) {
+            try {
+                $app.Kill()
+            } catch {
+                write-warning $_.Exception.Message
+            } 
+        }
+        throw
     }
     finally {
         Write-Indented "==== $exec =============" -mark "== "
@@ -409,15 +431,15 @@ function wait-tcp ($port, $message, $timeout = 120) {
      $scanstart = get-date
      while(!(test-port localhost $port)) {
          $elapsed = (get-date) - $scanstart
-         write-host "waiting for $message to be available at port $port... [$elapsed] timeout=$timeout"
+         write-host "waiting for $message to be available at port $port... [$elapsed] timeout=$($timeout-$elapsed.TotalSeconds)"
 
          #if ($app.HasExited) { throw "process $($app.Name) $($app.Id) has exited with code $($app.ExitCode)"}
 
          start-sleep -Seconds 1
          
          if ($elapsed.TotalSeconds -ge $timeout) {
-             write-warning "failed to start process '$message' after $($timeout)s timeout"
-             throw "failed to start process '$message' after $($timeout)s timeout"
+             write-warning "failed to connect to port $port of process '$message' after $($timeout)s timeout"
+             throw "failed to connect to port $port of process '$message' after $($timeout)s timeout"
          }
      }
      $elapsed = (get-date) - $scanstart

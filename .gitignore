@@ -1,3 +1,5 @@
 artifacts/
 *-stderr.txt
 *-stdout.txt
+webtest/test/*.log
+webtest/test/*-stdin.txt

@@ -2,6 +2,8 @@ require 'sinatra'
 
 global = {}
 
+set :port, 34567
+
 
 get '/' do
   'lets ROCK!'
