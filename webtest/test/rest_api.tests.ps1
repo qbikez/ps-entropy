@@ -9,7 +9,7 @@ Describe "rest api" {
     Context "with local sinatra" {
         # start server
         write-verbose "starting sinatra server"
-        $srv = start-app "ruby.exe" -argumentlist @("sinatra/server.rb") -port $port -http -captureOutput:$true -verbose -outfile:"sinatra-out.log" -errorfile:"sinatra-err.log" -timeout 10
+        $srv = start-app "ruby.exe" -argumentlist @("$psscriptroot/sinatra/server.rb") -port $port -http -captureOutput:$true -verbose -outfile:"sinatra-out.log" -errorfile:"sinatra-err.log" -timeout 10
         try {
             It "should get simple request" {
                 $r = invoke-url "http://localhost:$port"
