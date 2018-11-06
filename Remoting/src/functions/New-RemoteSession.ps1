@@ -473,7 +473,8 @@ param(
     [switch][bool] $list,
     [pscredential]
     [System.Management.Automation.Credential()]
-    $credential = [PSCredential]::Empty
+    $credential = [PSCredential]::Empty,
+    [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate
 )
     $bound = $PSBoundParameters
 
