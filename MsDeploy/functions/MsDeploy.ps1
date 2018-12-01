@@ -8,9 +8,9 @@ function Test-MsDeploy($server, $credential) {
         write-host "Im user '$env:username' on server '$env:hostname'!" 
     }
 
-    if ($credential -eq $null) {
+    if ($credential -eq $null -or $credential -eq "reset") {
         req cache
-        $credential = get-credentialscached $server
+        $credential = get-credentialscached $server -reset:($credential -eq "reset")
     }
 
     # $url = get-msdeployComputername $server
@@ -19,9 +19,32 @@ function Test-MsDeploy($server, $credential) {
     
     # Invoke-WebRequest $url -Headers $h -UseBasicParsing -ErrorAction stop
 
-    run-msdeploycommand -server $server `
-                -command $cmd `
-                -scriptMode -waitInterval 1000 -waitAttempts 600 -credential $credential 
+    # can upload files?
+
+    $canUpload = $false
+    try {
+        echo "testing.." > "$env:Temp/_msdeploy.txt"
+        Upload-MsDeployFile -server $server -source "$env:Temp\_msdeploy.txt" -targetPath c:\Temp\
+        $canUpload = $true
+    } catch {
+
+    }
+
+    $canInvoke = $false
+    try {
+    #can execite commands?
+        Invoke-MsDeployCommand -server $server `
+                    -command $cmd `
+                    -scriptMode -waitInterval 1000 -waitAttempts 600 -credential $credential 
+        $canInvoke = $true
+    } catch {
+
+    }
+
+    return @{
+        CanUpload=$canUpload
+        CanInvoke=$canInvoke
+    }
 }
 
 function Copy-MsDeployFile {
@@ -212,8 +235,11 @@ function get-skipRules([switch][bool]$deleteObsoleteItems = $false) {
     return $skip
 }
 
-function get-msdeployComputername($server,[int]$port=80) {
-    return "http://$($server):$port/MSDEPLOYAGENTSERVICE"
+function get-msdeployComputername($server,$port=$null) {
+    if ($port -ne $null) {
+        $server = "$($server):$port"
+    }
+    return "http://$($server)/MSDEPLOYAGENTSERVICE"
 }
 
 function get-msdeploypath($provider, $path, $server, $additionalArgs, $credential) {
