@@ -568,10 +568,13 @@ function add-rpsEntry {
         [switch][bool] $nossl, 
         [switch][bool] $force, 
         [System.Management.Automation.Runspaces.AuthenticationMechanism] $Authentication = [System.Management.Automation.Runspaces.AuthenticationMechanism]::negotiate,
-        [switch][bool] $ClearCredentials)
+        [switch][bool] $ClearCredentials,
+        [pscredential] $credential,
+        [switch][bool] $noEnter)
 
     $trust = $true
     $map = find-sessionmap -reload:$true
+    $cred = $credential
 
     if ($alias -eq $null) { $alias = $host }
 
@@ -579,37 +582,47 @@ function add-rpsEntry {
        Add-WinRMTrustedHost $host
     }
 
-    $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $host" -container "$alias.cred" -reset:$ClearCredentials -verbose
     if ($cred -eq $null) {
-        throw "credentials are required for remote connection to '$host', but there are no cached credentials in container '$alias.cred'!"
+        $cred = Cache\Get-CredentialsCached -Message "Enter credentials for $host" -container "$alias.cred" -reset:$ClearCredentials -verbose
+        if ($cred -eq $null) {
+            throw "credentials are required for remote connection to '$host', but there are no cached credentials in container '$alias.cred'!"
+        }
+    } else {
+        Cache\Export-Credentials -container "$alias.cred" -cred $cred
     }
 
-    $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl -credential:$cred -Authentication:$Authentication -Reuse:(!$force)
-    if ($session -ne $null) {
-        set-variable "$alias" -Scope global -Value $session
-        $sessionPort = $session.ApplicationPrivateData.Port
-        if ($sessionPort -ne $null) { $port = $sessionPort }
-        $sessionSsl = $session.ApplicationPrivateData.Ssl
-        if ($sessionSsl -ne $null) { $nossl = !$sessionSsl }
-
-        if ($map[$alias] -eq $null -or $force) {
-            $map[$alias] = @{
-                ComputerName = $host
-                UseSsl = !$nossl
-                Auth = $Authentication.ToString()
-            }
-            if ($port -ne $null) {
-                $map[$alias].Port = $port
-            }
-            if ($Global:psSessionsMapPath -ne $null -and [System.IO.Path]::GetExtension($Global:psSessionsMapPath) -eq ".json") {
-                req newtonsoft.json
-                write-verbose "saving session map at $Global:psSessionsMapPath"
-                copy-item $Global:psSessionsMapPath "$Global:psSessionsMapPath.bak"
-                $map | ConvertTo-JsonNewtonsoft | Out-File $Global:psSessionsMapPath
-            }
-        } else {
-            write-warning "host $alias already exists in seessionmap. Use -Force to override"
+    if (!$noenter) {
+        $session = New-RemoteSession -ComputerName $host -port $port -NoSsl:$nossl -credential:$cred -Authentication:$Authentication -Reuse:(!$force)
+        if ($session -ne $null) {
+            set-variable "$alias" -Scope global -Value $session
+            $sessionPort = $session.ApplicationPrivateData.Port
+            if ($sessionPort -ne $null) { $port = $sessionPort }
+            $sessionSsl = $session.ApplicationPrivateData.Ssl
+            if ($sessionSsl -ne $null) { $nossl = !$sessionSsl }
         }
+    }
+
+    if ($map[$alias] -eq $null -or $force) {
+        $map[$alias] = @{
+            ComputerName = $host
+            UseSsl = !$nossl
+            Auth = $Authentication.ToString()
+        }
+        if ($port -ne $null) {
+            $map[$alias].Port = $port
+        }
+        if ($Global:psSessionsMapPath -ne $null -and [System.IO.Path]::GetExtension($Global:psSessionsMapPath) -eq ".json") {
+            req newtonsoft.json
+            write-verbose "saving session map at $Global:psSessionsMapPath"
+            copy-item $Global:psSessionsMapPath "$Global:psSessionsMapPath.bak"
+            $map | ConvertTo-JsonNewtonsoft | Out-File $Global:psSessionsMapPath
+            $map[$alias] | format-table | out-string | write-verbose
+        }
+    } else {
+        write-warning "host $alias already exists in seessionmap. Use -Force to override"
+    }
+
+    if (!$noEnter) {
         $session | Enter-PSSession
     }
 }
