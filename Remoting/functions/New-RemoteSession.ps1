@@ -546,7 +546,7 @@ function Add-WinRMTrustedHost {
     param($host)
 
     $trustedHostsFile = "WSMan:\localhost\Client\TrustedHosts"
-    $trusted = @()
+    $trusted = ""
     if (test-path $trustedHostsFile) {
     $trusted = (Get-Item $trustedHostsFile).Value
     }
