@@ -545,9 +545,13 @@ function enter-rdp ($name, [switch][bool]$wait) {
 function Add-WinRMTrustedHost {
     param($host)
 
-    $trusted = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
+    $trustedHostsFile = "WSMan:\localhost\Client\TrustedHosts"
+    $trusted = @()
+    if (test-path $trustedHostsFile) {
+    $trusted = (Get-Item $trustedHostsFile).Value
+    }
     if ($host -notin $trusted.Split(",") -and "*" -ne $trusted) {
-        Set-Item WSMan:\localhost\Client\TrustedHosts -Value "$host" -Concatenate -Force
+        Set-Item $trustedHostsFile -Value $host -Concatenate -Force
     }
 }
 
@@ -614,9 +618,14 @@ function add-rpsEntry {
         if ($Global:psSessionsMapPath -ne $null -and [System.IO.Path]::GetExtension($Global:psSessionsMapPath) -eq ".json") {
             req newtonsoft.json
             write-verbose "saving session map at $Global:psSessionsMapPath"
-            copy-item $Global:psSessionsMapPath "$Global:psSessionsMapPath.bak"
-            $map | ConvertTo-JsonNewtonsoft | Out-File $Global:psSessionsMapPath
+            try {
+                copy-item $Global:psSessionsMapPath "$Global:psSessionsMapPath.bak"
+                $map | ConvertTo-JsonNewtonsoft | Out-File $Global:psSessionsMapPath
+            } catch {
+                write-warning "failed to save session map at $Global:psSessionsMapPath: $($_.Exception.Message)"
+            }
             $map[$alias] | format-table | out-string | write-verbose
+            $Global:psSessionsMap = $map
         }
     } else {
         write-warning "host $alias already exists in seessionmap. Use -Force to override"
