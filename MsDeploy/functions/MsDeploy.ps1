@@ -47,6 +47,49 @@ function Test-MsDeploy($server, $credential) {
     }
 }
 
+function Copy-MsDeployApp {
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param(
+        [Parameter(Mandatory=$true)]
+        $source,
+        [Parameter(Mandatory=$true)]
+        $server, 
+        [Parameter(Mandatory=$true)]
+        $site, 
+        [switch][bool]$deleteObsoleteItems, 
+        $authType,
+        $credential
+    ) 
+
+        $f = $source 
+
+        # TODO: run dotnet publish and determine source path from there        
+
+        $filename = [System.IO.Path]::GetFileName($f)
+        $srcIsDir = ((test-path $f) -and ((get-item $f) -is [System.IO.DirectoryInfo])) -or ($filename -eq "*")
+
+        if ($srcIsDir) {
+            $fullTargetPath = $site 
+            $fullSourcePath = [System.IO.Path]::GetDirectoryName($f)
+        } else {
+            $targetpath = $f.Replace("\","/")
+            if ($targetpath.startsWith("./")) { $targetpath = $targetpath.Substring(2)}
+            $fullTargetPath = "$site/$targetpath"
+            $fullSourcePath = $f
+        }
+
+        $fullSourcePath = (get-item $fullSourcePath).FullName
+
+        $provider = "contentPath"
+        $l = msdeploy -verb sync `
+            -source:(get-msdeploypath -provider $provider -path $fullSourcePath) `
+            -dest (get-msdeploypath -provider $provider -server $server -path $fullTargetPath -credential $credential -authType $authType) `
+            -skip:(get-skiprules $deleteObsoleteItems) `
+            -useChecksum `
+            -showOutput
+}
+
+
 function Copy-MsDeployFile {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param(
@@ -236,13 +279,16 @@ function get-skipRules([switch][bool]$deleteObsoleteItems = $false) {
 }
 
 function get-msdeployComputername($server,$port=$null) {
+    if ($server.startsWith("http")) {
+        return $server
+    }
     if ($port -ne $null) {
         $server = "$($server):$port"
     }
     return "http://$($server)/MSDEPLOYAGENTSERVICE"
 }
 
-function get-msdeploypath($provider, $path, $server, $additionalArgs, $credential) {
+function get-msdeploypath($provider, $path, $server, $additionalArgs, $credential, $authType, $site) {
     $a = @()
     $a += "$provider=`"$path`""
 
@@ -265,8 +311,14 @@ function get-msdeploypath($provider, $path, $server, $additionalArgs, $credentia
             $password = $credential.GetNetworkCredential().Password
             $a += "username=$username"
             $a += "password=$password"
-            #$a += "AuthType='Basic'"
+            if ($authType -ne $null) {
+                $a += "AuthType='$authType'"
+            }
         }
+    }
+    
+    if ($site -ne $null) {
+        $a += "site=$site"
     }
 
     if ($additionalArgs -ne $null) {
@@ -314,5 +366,6 @@ function add-ext($f, $suffix) {
 new-alias msdeploy Invoke-MsDeploy -force
 new-alias Download-MsDeployFile Get-MsDeployFile -force
 new-alias Upload-MsDeployFile Copy-MsDeployFile -force
+new-alias Upload-MsDeployApp Copy-MsDeployApp -force
 new-alias List-MsDeployFiles Get-MsDeployFiles -force
 #endregion
