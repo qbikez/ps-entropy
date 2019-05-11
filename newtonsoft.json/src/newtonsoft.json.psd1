@@ -95,7 +95,7 @@ PrivateData = @{
         Tags = 'newtonsoft', 'json', 'serialization'
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/qbikez/ps-entropy/license.txt'
+        LicenseUri = 'https://github.com/qbikez/ps-entropy/blob/master/license.txt'
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/qbikez/ps-entropy/tree/master/src/newtonsoft.json'

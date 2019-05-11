@@ -12,7 +12,7 @@
 RootModule = 'Remoting.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.2.7.2'
+ModuleVersion = '0.2.7.3'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -98,7 +98,7 @@ PrivateData = @{
         # Tags = @()
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        LicenseUri = 'https://github.com/qbikez/ps-entropy/blob/master/license.txt'
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/qbikez/ps-entropy.git'
@@ -120,6 +120,7 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
+
 
 
 

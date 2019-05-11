@@ -24,7 +24,7 @@ GUID = 'b0a28073-1f2c-44cb-98cf-097c23e02829'
 Author = 'jakub.pawlowski'
 
 # Company or vendor of this module
-CompanyName = 'Holycode sp. z o.o.'
+CompanyName = 'heavymetaldev'
 
 # Copyright statement for this module
 Copyright = '(c) 2016 jakub.pawlowski. All rights reserved.'
@@ -98,7 +98,7 @@ PrivateData = @{
         # Tags = @()
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        LicenseUri = 'https://github.com/qbikez/ps-entropy/blob/master/license.txt'
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/qbikez/ps-entropy.git'
