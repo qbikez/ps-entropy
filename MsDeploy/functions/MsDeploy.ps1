@@ -85,6 +85,7 @@ function Copy-MsDeployApp {
             -source:(get-msdeploypath -provider $provider -path $fullSourcePath) `
             -dest (get-msdeploypath -provider $provider -server $server -path $fullTargetPath -credential $credential -authType $authType) `
             -skip:(get-skiprules $deleteObsoleteItems) `
+            -enableRule "AppOffline" `
             -useChecksum `
             -showOutput
 }
@@ -226,6 +227,7 @@ function Invoke-MsDeploy {
         $verb, 
         $source, $dest, 
         $skip,
+        $enableRule,
         [switch][bool] $useChecksum, 
         [switch][bool] $showOutput
     )
@@ -248,7 +250,10 @@ function Invoke-MsDeploy {
     }
     if ($skip -ne $null) {
         @($skip) | % { $a += "-skip:$_" }
-        
+    }
+
+    if ($enableRule -ne $null) {
+        $($enableRule) | % { $a += "-enableRule:$_"}
     }
     
     # ignore invalid https certificates
@@ -293,11 +298,12 @@ function get-msdeploypath($provider, $path, $server, $additionalArgs, $credentia
     $a += "$provider=`"$path`""
 
     if ($server -ne $null) {
-        if ($credential -eq $null -and (gmo cache -erroraction Ignore)) {
+        if ($credential -eq $null -and (gmo cache -ListAvailable -erroraction Ignore)) {
+            req cache
             $credential = Get-CredentialsCached "$server"
         }
         if ($credential -eq $null) {
-            throw "missing credentials"
+            throw "missing credentials for $server"
         }
         $a += "computername=" + (get-msdeployComputername $server)
     }
