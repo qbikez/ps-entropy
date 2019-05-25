@@ -12,7 +12,7 @@
 RootModule = 'newtonsoft.json.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.1.2'
+ModuleVersion = '1.0.2.200'
 
 # ID used to uniquely identify this module
 GUID = 'b658063c-41d0-49f8-ac21-7b762d9824e9'
@@ -66,7 +66,7 @@ Description = 'Serialize/Deserialize Json using Newtonsoft.json'
 # NestedModules = @()
 
 # Functions to export from this module
-FunctionsToExport = '*'
+FunctionsToExport = 'ConvertFrom-JsonNewtonsoft','ConvertTo-JsonNewtonsoft'
 
 # Cmdlets to export from this module
 CmdletsToExport = '*'
@@ -84,7 +84,7 @@ AliasesToExport = '*'
 # ModuleList = @()
 
 # List of all files packaged with this module
-# FileList = @()
+FileList = @('libs\Newtonsoft.Json.dll')
 
 # Private data to pass to the module specified in RootModule/ModuleToProcess. This may also contain a PSData hashtable with additional module metadata used by PowerShell.
 PrivateData = @{
@@ -95,7 +95,7 @@ PrivateData = @{
         Tags = 'newtonsoft', 'json', 'serialization'
 
         # A URL to the license for this module.
-        # LicenseUri = ''
+        LicenseUri = 'https://github.com/qbikez/ps-entropy/blob/master/license.txt'
 
         # A URL to the main website for this project.
         ProjectUri = 'https://github.com/qbikez/ps-entropy/tree/master/src/newtonsoft.json'
@@ -117,6 +117,24 @@ PrivateData = @{
 # DefaultCommandPrefix = ''
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
