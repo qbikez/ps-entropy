@@ -1,5 +1,5 @@
 function _SanitizeContainerName([Parameter(Mandatory=$true, ValueFromPipeline=$true)]$container) {
-    return $container.Replace("\","_").Replace("/","_").Replace(":","_")
+    return $container.Replace("\","_").Replace("/","_").Replace(":","_").Replace("?","_")
 }
 
 function Export-Cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data, [Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
