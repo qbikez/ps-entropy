@@ -10,10 +10,19 @@ pool:
   vmImage: 'windows-2019'
 
 steps:
-- powershell: write-host "hello from the pipe"
-  displayName: 'Run a one-line script'
+  - powershell: |
+      git submodule update --init --recursive
+      scripts/lib/init.ps1 .
+      scripts/init.ps1 .
+      scripts/lib/restore.ps1 .
+      scripts/restore.ps1
+    displayName: 'install'
 
-- powershell: |
-    write-host "Add other tasks to build, test, and deploy your project."
-    write-host "See https://aka.ms/yaml"
-  displayName: 'Run a multi-line script'
+  - powershell: scripts/test.azure-pipelines.ps1
+    displayName: 'Run Pester tests'
+
+  - task: PublishTestResults@2
+    inputs:
+      testRunner: NUnit
+      testResultsFiles: 'artifacts/test-result.xml'
+      failTaskOnFailedTests: true
