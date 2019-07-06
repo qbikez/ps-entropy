@@ -10,10 +10,10 @@ pool:
   vmImage: 'windows-2019'
 
 steps:
-- script: write-host "hello from the pipe"
+- powershell: write-host "hello from the pipe"
   displayName: 'Run a one-line script'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
+- powershell: |
+    write-host "Add other tasks to build, test, and deploy your project."
+    write-host "See https://aka.ms/yaml"
   displayName: 'Run a multi-line script'
