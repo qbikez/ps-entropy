@@ -16,8 +16,6 @@ steps:
     inputs:
       versionSpec: '>= 2.4' 
 
-  - powershell: gem install bundler
-    displayName: install bundler
   - powershell: |
       scripts/lib/init.ps1 .
       scripts/init.ps1 .

@@ -4,7 +4,8 @@ import-module require
 req process
 req cache
 req publishmap
-req pester -version 4.4
+
+Install-Module Pester -MinimumVersion 4.4 -Force # TODO: switch back to req when it supports '-Force'
 
 $restoreScripts = get-childitem "$psscriptroot/.." -directory -Exclude "scripts" | % { get-childitem $_ -Filter "restore.ps1" }
 
