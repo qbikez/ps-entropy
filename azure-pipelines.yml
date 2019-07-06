@@ -7,10 +7,10 @@ trigger:
 - master
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'windows-2019'
 
 steps:
-- script: echo Hello, world!
+- script: write-host "hello from the pipe"
   displayName: 'Run a one-line script'
 
 - script: |
