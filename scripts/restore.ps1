@@ -1,6 +1,10 @@
-install-module process
-install-module cache
-install-module publishmap
+install-module require
+
+import-module require
+req process
+req cache
+req publishmap
+req pester -version 4.4
 
 $restoreScripts = get-childitem "$psscriptroot/.." -directory -Exclude "scripts" | % { get-childitem $_ -Filter "restore.ps1" }
 
