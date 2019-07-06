@@ -3,8 +3,10 @@ install-module Require
 ipmo Require
 req PathUtils
 
-choco install ruby -y
-refresh-env
+if ($null -eq (where-is ruby)) {
+    choco install ruby -y
+    refresh-env
+}
 
 where-is ruby
 ruby --version
