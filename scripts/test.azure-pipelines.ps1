@@ -41,9 +41,9 @@ try {
 
     write-host "pester result = '$testResultCode' lastexitcode=$lastexitcode"
 
-    #ExitWithCode $testResultCode
+    ExitWithCode 0
 
 }
 catch {
-    ExitWithCode 1  
+    ExitWithCode 1
 }

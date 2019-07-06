@@ -10,20 +10,27 @@ pool:
   vmImage: 'windows-2019'
 
 steps:
+  - powershell: git submodule update --init --recursive
+    displayName: update git submodules
   - task: UseRubyVersion@0
     inputs:
       versionSpec: '>= 2.4' 
+
   - powershell: gem install bundler
+    displayName: install bundler
   - powershell: |
-      git submodule update --init --recursive
       scripts/lib/init.ps1 .
       scripts/init.ps1 .
+    displayName: init
+  - powershell: |
       scripts/lib/restore.ps1 .
       scripts/restore.ps1
-    displayName: 'install'
+    displayName: 'restore'
 
   - powershell: scripts/test.azure-pipelines.ps1
     displayName: 'Run Pester tests'
+    failOnStderr: false
+    ignoreLASTEXITCODE: false
 
   - task: PublishTestResults@2
     inputs:
