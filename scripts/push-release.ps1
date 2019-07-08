@@ -10,8 +10,8 @@ try {
     if ($lastReleaseTag -notmatch "release-[v]{0,1}([0-9]+)") {
         throw "last release tag $lastReleaseTag does not contain a numeric version"
     }
-    write-host "last release: $lastReleaseNo"
     $lastReleaseNo = [int]::Parse($Matches[1])
+    write-host "last release: $lastReleaseTag (No=$lastReleaseNo)"
 
     $toRelease = @()
     $diff = git diff --name-only $lastReleaseTag HEAD
