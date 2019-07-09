@@ -12,7 +12,7 @@ function Export-Cache(
         $container = _SanitizeContainerName $container
 
         if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
-        else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir }
+        else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
 
         try {
             if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
@@ -38,7 +38,7 @@ function Import-Cache {
     else {
         # default disk cache provider
         if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
-        else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir }
+        else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
 
         $container = _SanitizeContainerName $container
         try {
@@ -58,6 +58,21 @@ function Import-Cache {
     }
 }
 
+function Get-CacheDirs {
+param (
+        [Parameter(Mandatory = $false)]$provider = $null
+    ) 
+
+    if ($provider -notin @($null, "default")) {
+        throw "get-cacheDirs is only implemented for the default provider"
+    }
+
+    $rootDir = "$env:home\Documents\windowspowershell"
+    $cacheDirs = Get-ChildItem $rootDir -Directory
+
+    return $cacheDirs
+}
+
 function Get-CacheList {
     param (
         [Parameter(Mandatory = $false)]$dir = ".cache"
@@ -71,7 +86,7 @@ function Get-CacheList {
     else {
         # default disk cache provider
         if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
-        else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir }
+        else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
 
         if (!(test-path $cacheDir)) { return @{} }
 
@@ -95,7 +110,7 @@ function Remove-Cache {
         [Parameter(Mandatory = $false)]$dir = ".cache"
     )
     if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
-    else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir }
+    else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
     $container = _SanitizeContainerName $container
     if ((test-path $cacheDir)) {
         $path = "$cacheDir\$container.json"
