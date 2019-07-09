@@ -37,6 +37,7 @@ try {
     $status = @{}
     foreach($module in $toRelease) {
         try {
+            write-host "pushing module $module"
             if ($buildNo -eq $null) {
                 scripts/lib/push.ps1 $module -newbuild
             } else {
@@ -45,6 +46,7 @@ try {
             $status[$module] = "success"
             git add $module
         } catch {
+            write-error $_
             $status[$module] = $_
         }
     }
