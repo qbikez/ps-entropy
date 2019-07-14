@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param($buildNo, [switch]$force)
+param($buildNo, [switch]$force, [switch][bool]$notag)
 
 $repoRoot = "$psscriptroot\.."
 
@@ -62,7 +62,7 @@ try {
     }
 
     $success = $status.Values | ? { $_ -eq "success" }
-    if ($success) {
+    if ($success -and -not $notag) {
         $newReleaseNo = $lastReleaseNo + 1
         git commit -m "release $newReleaseNo"
         git tag -a "release-$newReleaseNo" -m "release $newReleaseNo"
