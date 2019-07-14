@@ -62,10 +62,13 @@ try {
     }
 
     $success = $status.Values | ? { $_ -eq "success" }
-    if ($success -and -not $notag) {
-        $newReleaseNo = $lastReleaseNo + 1
-        git commit -m "release $newReleaseNo"
-        git tag -a "release-$newReleaseNo" -m "release $newReleaseNo"
+    if ($success) {
+        if (!$notag) {
+            $newReleaseNo = $lastReleaseNo + 1
+            git commit -m "release $newReleaseNo"
+            git tag -a "release-$newReleaseNo" -m "release $newReleaseNo"
+        }
+        Write-Host "##vso[task.setvariable variable=published_modules]$(@($success).Count)"
     }
 
 } finally {
