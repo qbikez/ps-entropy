@@ -1,4 +1,5 @@
-param($buildNo)
+[CmdletBinding()]
+param($buildNo, [switch]$force)
 
 $repoRoot = "$psscriptroot\.."
 
@@ -14,6 +15,7 @@ try {
     write-host "last release: $lastReleaseTag (No=$lastReleaseNo)"
 
     $toRelease = @()
+
     $diff = git diff --name-only $lastReleaseTag HEAD
     foreach($diffFile in $diff) {
         $splits = $diffFile.Split([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
@@ -27,7 +29,15 @@ try {
         Get-ChildItem $_ -Recurse -Filter "*.psd1" | ? { $_ -notmatch "test" } | select -ExpandProperty FullName
     }
 
-    if ($toRelease -eq $null) {
+    if ($force) {
+        $toRelease = Get-ChildItem . -Recurse -Filter "*.psd1" | ? { $_ -notmatch "test" } | select -ExpandProperty FullName 
+    }
+
+    $toRelease = $toRelease | ? {
+        $_ -notmatch "PSScriptAnalyzer"
+    }
+
+    if ($null -eq $toRelease) {
         Write-Warning "Nothing to release"
         return
     }
