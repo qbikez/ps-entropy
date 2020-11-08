@@ -652,36 +652,41 @@ function get-sshEntry {
 
 function copy-sshid { 
     [CmdletBinding()]
-    param($host, $port = $null, $username, $alias, $id)
+    param($hostname, $port = $null, $username = $null, $alias, $id)
 
     $org_port = $port
     if ($port -eq $null) { $port = 22 }
-    $ssh_home = "$env:USERPROFILE\.ssh"
+    $ssh_home = "~\.ssh"
     if (!(test-path $ssh_home)) { $null = mkdir $ssh_home }
-    if ($id -ne $null) { 
-        $idfile = "$id.pub"
-        $id = "$ssh_home\$idfile"
+    if ($id -eq $null) { $id = "id_rsa" } 
+    $idfile = "$ssh_home\$id"
+
+    if (!(Test-Path $idfile)) {
+        write-verbose "$idfile not found. generating"
+        & ssh-keygen -f $idfile
     }
-    else {
-        $id = "$ssh_home\id_rsa.pub"
-    }
-    if (!(Test-Path $id)) {
-        write-verbose "id_rda.pub not found. generating"
-        & ssh-keygen
-    }
-    write-verbose "using id file: '$id'"
+    write-verbose "using id file: '$idfile'"
     
     $cmd = "umask 077; test -d .ssh || mkdir .ssh ; cat >> .ssh/authorized_keys"
     write-verbose "executing: cmd /c `"ssh $host -p $port `"$cmd`" < $id`""
-    $idstring = get-content $id | out-string
-    invoke "ssh" "$host" "-p" "$port" $cmd -in $idstring
-
-    $hostname = $host
+    $idstring = get-content $idfile | out-string
+    
     if ($hostname -match "(.*)@(.*)") {
-        $username = $matches[1]
+        if ($username -eq $null) {
+            $username = $matches[1]
+        }
         $hostname = $matches[2]
     }
+    if ($hostname -match "(.*):([0-9]+)") {
+        if ($port -eq $null) {
+            $port = $matches[2]
+        }
+        $hostname = $matches[1]
+    }
     if ($alias -eq $null) { $alias = $hostname }
+
+    invoke "ssh" "$hostname" "-p" "$port" $cmd -in $idstring -showoutput
+    # TODO: copy idfile to remote server auhtorized_hosts
 
     $config = "$ssh_home\config"
     if (!(test-path $config)) { out-file $config }
