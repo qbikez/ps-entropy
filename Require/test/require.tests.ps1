@@ -25,7 +25,7 @@ Describe "require module test" {
             #Set-TestInconclusive -Message "something's wrong with pscx install from choco"
         #}
     }
-    It "Should try to upgrade module from choco" {
+    It "Should try to upgrade module from choco if requested version is higher than current" {
         try {
             $module = "carbon"
             $version = "99.99.99"
@@ -45,4 +45,8 @@ Describe "require module test" {
         }
         # ok, at least we tried
     }
+}
+
+Describe "version specification" {
+    
 }

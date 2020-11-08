@@ -1,3 +1,65 @@
+
+<#
+.SYNOPSIS
+Imports a module (similar to Import-Module), but will try to install it if it's not available 
+
+.DESCRIPTION
+Imports a module (similar to Import-Module), but will try to install it if it's not available 
+
+Combines checking for module, installing it and importing into one handy command. 
+Can also update a module and reload it if a newer version is requested.
+
+
+.PARAMETER modules
+List of modules to load.
+
+.PARAMETER version
+Require specific version of the package. Can be a SemVer number, or 'latest'.
+
+If a newer version is requested (than the one that's available on the system), the module will be updated and reloaded.
+
+.PARAMETER package
+Name of the package that contains the requested module (i.e. name of choco package to install)
+
+.PARAMETER package
+Forces reload of the module, even if an appropriate version is already loaded. 
+If the module needs updating (i.e. because requested version is higher than the loaded one), 
+then the module will be reloaded irrespectively of this flag.
+
+.PARAMETER source
+The source to get the package from. 
+Valid values: 
+'oneget', 'psgallery', 'choco',
+'choco:{url_of_repository}', 'psgallery:{urlofrepository}'
+Default: oneget.
+
+.PARAMETER wait
+In some scenarios, there's a need to invoke an elevated command to install additional tools (i.e.: chocolatey).
+Use -Wait switch to wait for user input after running these commands.
+
+.PARAMETER scope
+The scope in which the module will be installed (same as Scope of Install-Module)
+
+.PARAMETER SkipPublisherCheck
+Pass -SkipPublisherCheck to Install-Module
+
+.PARAMETER AllowClobber
+Pass -AllowClobber to Install-Module
+
+.PARAMETER Force
+Pass -Force to Install-Module
+
+.INPUTS
+None.
+
+.OUTPUTS
+None.
+
+.EXAMPLE
+
+PS> Request-Module Pester -version 4.4
+
+#>
 function Request-Module { 
     [CmdletBinding()]
     param(
@@ -12,7 +74,8 @@ function Request-Module {
         [ValidateSet("AllUsers","CurrentUser","Auto")]
         [string] $scope = "CurrentUser",
         [switch][bool] $SkipPublisherCheck,
-        [switch][bool] $AllowClobber = $true
+        [switch][bool] $AllowClobber = $true,
+        [switch][bool] $Force
     ) 
 
     $original_version = $version
@@ -81,7 +144,7 @@ function Request-Module {
         if ($mo -ne $null) {
             write-verbose "version=$version mo=$mo mo.version=$($mo.Version[0]) requested version = $version"
         }
-        if ($reload -or ($version -ne $null -and $loaded -and $currentversion -lt $version)) {
+        if ($reload -or ($loaded -and $version -ne $null -and $currentversion -lt $version)) {
             write-verbose "removing module $_"
             if (gmo $_) { rmo $_ -Verbose:$false }
         }
@@ -130,6 +193,10 @@ function Request-Module {
                if ($SkipPublisherCheck -and ((get-command install-module).Parameters.SkipPublisherCheck) -ne $null) {
                    $p += @{ SkipPublisherCheck = $true }  
                } 
+               if ($Force) {
+                   $p += @{ Force = $true }
+               }
+
                if ($psrepository -ne $null) {
                    $p += @{ Repository = $psrepository }
                }

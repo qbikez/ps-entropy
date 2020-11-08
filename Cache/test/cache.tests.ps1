@@ -75,7 +75,6 @@ Describe "import/export settings" {
         $plain_value | Should Be $plain_expected        
     }
 
-    
     It "updating password should not destroy encrypted values" {
         $data = "my-secret-value"
         $container = "test2"
@@ -98,7 +97,19 @@ Describe "import/export settings" {
         $plain_expected = ConvertTo-PlainText $data
         $plain_value = ConvertTo-PlainText $value
 
-        $plain_value | Should Be $plain_expected        
+        $plain_value | Should Be $plain_expected
     }
+}
 
+Describe "list cached values" {
+    It "should list all exported values" {
+        $dir = "test-$([Guid]::NewGuid())"
+        Cache\Export-Cache -data "value1" -container "key1" -dir "$dir"
+        Cache\Export-Cache -data "value2" -container "key2" -dir "$dir"
+        Cache\Export-Cache -data "value3" -container "key3" -dir "$dir"
+
+        $l = Cache\Get-CacheList -dir $dir
+        
+        $l.Count | Should -Be 3
+    }
 }

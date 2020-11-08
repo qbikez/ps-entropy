@@ -1,66 +1,147 @@
-function _SanitizeContainerName([Parameter(Mandatory=$true, ValueFromPipeline=$true)]$container) {
-    return $container.Replace("\","_").Replace("/","_").Replace(":","_").Replace("?","_")
-}
+function Export-Cache(
+    [Parameter(Mandatory = $true, ValueFromPipeline = $true)]$data,
+    [Parameter(Mandatory = $true)]$container,
+    [Parameter(Mandatory = $false)]$dir = ".cache"
+) {
+    # try custom providers
+    if (_IsCustomProvider $container) {
+        return _InvokeCustomProviderCommand -command "export" -container $container -data $data
+    }
+    else {
+        # default disk cache provider
+        $container = _SanitizeContainerName $container
 
-function Export-Cache([Parameter(Mandatory=$true,ValueFromPipeline=$true)]$data, [Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
-    # check custom providers
-    if ($container.Contains(":")) {
-        $splits = $container.split(":")
-        $provider = $splits[0]
-        if ($null -ne (get-command "export-$($provider)cache" -ErrorAction Ignore)) {
-            return & "export-$($provider)cache" $data $container.Substring($provider.length + 1)
+        if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
+        else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
+
+        try {
+            if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
         }
+        catch {
+            throw "could not find or create cache directory '$cachedir'"
+        }
+        $path = "$cacheDir\$container.json"
+        $data | ConvertTo-Json | Out-File $path -Encoding utf8
     }
-    # default disk cache provider
-    if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
-    else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
-    $container = _SanitizeContainerName $container
-    try {
-        if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
-    } catch {
-        throw "could not find or create cache directory '$cachedir'"
-    }
-    $path = "$cacheDir\$container.json"
-    $data | ConvertTo-Json | Out-File $path -Encoding utf8
 }
 
-function Import-Cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
-    # check custom providers
+function Import-Cache {
+    param (
+        [Parameter(Mandatory = $true)]$container,
+        [Parameter(Mandatory = $false)]$dir = ".cache"
+    )
     if ([string]::IsNullOrEmpty($container)) { throw "container cannot be null or empty" }
-    if ($container.Contains(":")) {
-        $splits = $container.split(":")
-        $provider = $splits[0]
-        if ($null -ne (get-command "import-$($provider)cache" -ErrorAction Ignore)) {
-            return & "import-$($provider)cache" $container.Substring($provider.length + 1)
-        }
+    # try custom providers
+    if (_IsCustomProvider $container) {
+        return _InvokeCustomProviderCommand -command "export" -container $container
     }
-    # default disk cache provider
-    if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
-    else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
-    $container = _SanitizeContainerName $container
-    try {
-    if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
-    } catch {
-        throw "could not find or create cache directory '$cachedir'"
-    }
-    $path = "$cacheDir\$container.json"
-    
-    $data = $null
-    if (test-path $path) {
-        $data = Get-Content $path -Encoding UTF8 | out-String | ConvertFrom-Json
-    }
+    else {
+        # default disk cache provider
+        if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
+        else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
 
-    return $data
+        $container = _SanitizeContainerName $container
+        try {
+            if (!(test-path $cacheDir)) { $null = new-item -ItemType directory $cacheDir -erroraction stop }
+        }
+        catch {
+            throw "could not find or create cache directory '$cachedir'"
+        }
+        $path = "$cacheDir\$container.json"
+
+        $data = $null
+        if (test-path $path) {
+            $data = Get-Content $path -Encoding UTF8 | out-String | ConvertFrom-Json
+        }
+
+        return $data
+    }
 }
 
-function Remove-Cache([Parameter(Mandatory=$true)]$container, [Parameter(Mandatory=$false)]$dir = ".cache") {
-    if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir } 
-    else { $cacheDir = Join-Path "$home\Documents\windowspowershell" $dir } 
+function Get-CacheDirs {
+param (
+        [Parameter(Mandatory = $false)]$provider = $null
+    ) 
+
+    if ($provider -notin @($null, "default")) {
+        throw "get-cacheDirs is only implemented for the default provider"
+    }
+
+    $rootDir = "$env:home\Documents\windowspowershell"
+    $cacheDirs = Get-ChildItem $rootDir -Directory
+
+    return $cacheDirs
+}
+
+function Get-CacheList {
+    param (
+        [Parameter(Mandatory = $false)]$dir = ".cache"
+    )
+
+    if ([string]::IsNullOrEmpty($dir)) { throw "container cannot be null or empty" }
+    # try custom providers
+    if (_IsCustomProvider $drir) {
+        return _InvokeCustomProviderCommand -command "list" -dir $dir
+    }
+    else {
+        # default disk cache provider
+        if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
+        else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
+
+        if (!(test-path $cacheDir)) { return @{} }
+
+        $result = @{}
+        $containers = Get-ChildItem $cacheDir -Filter "*.json"
+        
+        foreach($container in $containers) {
+            $key = [System.IO.Path]::GetFileNameWithoutExtension($container.name)
+            $value = Get-Content $container.fullname | out-string
+            $result[$key] = $value
+        }
+
+        return $result
+    }
+}
+
+function Remove-Cache {
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param (
+        [Parameter(Mandatory = $true)]$container,
+        [Parameter(Mandatory = $false)]$dir = ".cache"
+    )
+    if ([System.IO.Path]::IsPathRooted($dir)) { $cacheDir = $dir }
+    else { $cacheDir = Join-Path "$env:home\Documents\windowspowershell" $dir }
     $container = _SanitizeContainerName $container
-    if ((test-path $cacheDir)) { 
+    if ((test-path $cacheDir)) {
         $path = "$cacheDir\$container.json"
         if (test-path $path) {
-            remove-item $path
+            if ($PSCmdlet.ShouldProcess("Remove cache container", "Remove $path")) {
+                remove-item $path
+            }
         }
     }
+}
+
+function _IsCustomProvider($container) {
+    return $container -ne $null -and $container.Contains(":")
+}
+
+function _InvokeCustomProviderCommand($command, $container, $dir, $data) {
+    $splits = $container.split(":")
+    $provider = $splits[0]
+    $providerPath = $splits[1]
+    if ($null -ne (get-command "export-$($provider)cache" -ErrorAction Ignore)) {
+        $p = @{
+            container = $providerPath
+        }
+        if ($data -ne $null) {
+            $p.data = $data
+        }
+
+        return (& "$command-$($provider)cache" @p)
+    }
+}
+
+function _SanitizeContainerName([Parameter(Mandatory = $true, ValueFromPipeline = $true)]$container) {
+    return $container.Replace("\", "_").Replace("/", "_").Replace(":", "_").Replace("?", "_")
 }
