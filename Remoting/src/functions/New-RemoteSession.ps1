@@ -713,7 +713,6 @@ function copy-sshid {
     }
     write-verbose "using id file: '$id'"
     
-    $cmd = "umask 077; test -d .ssh || mkdir .ssh ; cat >> .ssh/authorized_keys"
     $idstring = get-content $id | out-string
 
     $configFile = "$ssh_home\config"
@@ -726,6 +725,7 @@ function copy-sshid {
             name    = $alias
             content = @()
         }
+        $cfg = @($cfg) + $cfgEntry
     }
     else {
         write-verbose "found existing config for $alias : `r`n$($cfgentry.content)"
@@ -739,16 +739,26 @@ function copy-sshid {
         }
     }
 
-    write-verbose "executing: cmd /c `"ssh $hostname -p $port `"$cmd`" < $id`""
-    invoke "ssh" "$hostname" "-p" "$port" $cmd -in $idstring
-
     if ($hostname -match "(.*)@(.*)") {
         $username = $matches[1]
         $hostname = $matches[2]
     }
+
+    if ($hostname -match "(.*):([0-9]+)") {
+        $hostname = $matches[1]
+        $port = $matches[2]
+    }
+    $a = @()
+    if ($username -ne $null) {
+        $a += @("-l", $username)
+    }
+    #write-verbose "executing: cmd /c `"ssh $hostname -p $port $a `"$cmd`" < $id`""
+    # $r = invoke "ssh" "$hostname" "-p" "$port" $a $cmd -in $idstring -passthru -showoutput -Verbose
+    $cmd = "umask 077; test -d .ssh || mkdir .ssh ; cat >> .ssh/authorized_keys"
+    & cmd /c "ssh $hostname -p $port $a `"$cmd`" < $id"
     if ($alias -eq $null) { $alias = $hostname }
 
-    write-verbose "adding ssh config for host $alias"
+    write-verbose "adding ssh config for host '$alias' to file '$configFile'"
     $cfgEntry.Content += "Host $alias"
     $cfgEntry.Content += "  HostName $hostname"
     $cfgEntry.Content += "  Port $port"
@@ -759,7 +769,6 @@ function copy-sshid {
     if ($idfile -ne $null) {
         $cfgEntry.Content += "   IdentityFile $idfile"
     }
-    
     save-sshConfig -config $cfg -configFile $configFile
 }
 
