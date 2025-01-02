@@ -1,4 +1,4 @@
-$asm = [Reflection.Assembly]::LoadFile($(Join-Path $PSScriptRoot, "libs", "Newtonsoft.Json.dll"))
+$asm = [Reflection.Assembly]::LoadFile($(Join-Path -Path $PSScriptRoot -ChildPath "libs" -AdditionalChildPath "Newtonsoft.Json.dll"))
 
 function ConvertFrom-JObject($obj) {
    if ($obj -is [Newtonsoft.Json.Linq.JArray]) {
