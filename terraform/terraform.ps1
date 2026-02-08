@@ -43,7 +43,7 @@ function Initialize-TerraformLocal {
             backend "local" {}
         }      
 "@
-    $provider_override | out-file "provider_override.tf" -encoding utf8
+    $provider_override | Out-File "provider_override.tf" -Encoding utf8
 
 
     $provider_vars | Out-TerraformVars "_provider.auto.tfvars"
@@ -84,13 +84,13 @@ function Initialize-TerraformBlob {
         Write-Warning "no statefile given and no env data for environment '$envName' found in .environments.yaml."
         Write-Warning "You can use '-statefile' paramater to provide statefile path, i.e.: '-statefile mystate.blob.core.windows.net/tfstates/foobar-infra-ci'"
         if ($envs -and $envs.keys) {
-            write-host "Available environments:"
-            $envs.keys | write-host
+            Write-Host "Available environments:"
+            $envs.keys | Write-Host
         }
         return
     }
     
-    $sub = select-subscription $envData
+    $sub = Select-Subscription $envData
     $backendConfig = Get-BackendConfig -statefile $envData.statefile -sub $sub
     $backendConfig | Out-TerraformVars "_backend.tfvars"
 
@@ -99,7 +99,7 @@ function Initialize-TerraformBlob {
             backend "azurerm" {}
         }      
 "@
-    $provider_override | out-file "provider_override.tf" -encoding utf8
+    $provider_override | Out-File "provider_override.tf" -Encoding utf8
 
 
     $a = @()
@@ -107,7 +107,7 @@ function Initialize-TerraformBlob {
     if ($upgrade) { $a += @("--upgrade") }
     if ($migrate) { $a += @("--migrate-state") }
 
-    write-verbose "terraform init --backend-config `"_backend.tfvars`" $a" -Verbose
+    Write-Verbose "terraform init --backend-config `"_backend.tfvars`" $a" -Verbose
     terraform init --backend-config "_backend.tfvars" $a
 
     if ($LASTEXITCODE -ne 0) { throw "terraform init failed" }
@@ -189,14 +189,16 @@ function Initialize-TerraformAzure {
 
     if ($key) {
         if (!$key.Contains($env)) {
-            write-warning "key '$key' does not contains environment name '$env'. Are you sure this is what you wanted?"
+            Write-Warning "key '$key' does not contains environment name '$env'. Are you sure this is what you wanted?"
         }
         # configure azurerm backend to use the same storage as pipelines
         if ($storageAccountName -ne $null) {
             $accountName = $storageAccountName
-        } elseif ($env:TF_STORAGE_ACCOUNT_NAME) {
+        }
+        elseif ($env:TF_STORAGE_ACCOUNT_NAME) {
             $accountName = $env:TF_STORAGE_ACCOUNT_NAME
-        } else {
+        }
+        else {
             Write-Warning "No storage account name provided. Set -storageAccountName or $env:TF_STORAGE_ACCOUNT_NAME to override."
             throw "Storage account name must be provided via -storageAccountName or TF_STORAGE_ACCOUNT_NAME environment variable."
         }
@@ -216,7 +218,7 @@ function Set-AzurePAT($pat) {
 }
 
 function Test-State ($statefile, [switch][bool]$newState) {
-    $state = terraform show -no-color | out-string
+    $state = terraform show -no-color | Out-String
     if (!$newState -and ([string]::IsNullOrWhitespace($state) -or $state.Trim() -eq "No state.")) { 
         throw "terraform state at '$statefile' is empty. Make sure you used the right name/env/key combination."
     }
@@ -231,7 +233,7 @@ function Import-EnvConfig {
     $filename = ".environments.yaml"
     $config = @{}
     if ((Test-Path $filename)) {
-        $config = get-content $filename | ConvertFrom-Yaml -Ordered
+        $config = Get-Content $filename | ConvertFrom-Yaml -Ordered
     }
     if (!$config) {
         $config = @{}
@@ -256,21 +258,21 @@ function Get-BackendConfig($statefile, $sub) {
     $containerName = $matches["container"]
     $key = $matches["blob"]
 
-    Write-Verbose "looking for statefile container: $statefile" -verbose
+    Write-Verbose "looking for statefile container: $statefile" -Verbose
 
-    $accountInfo = az storage account list --query "[?name=='$($accountName)']" | out-string | ConvertFrom-Json
+    $accountInfo = az storage account list --query "[?name=='$($accountName)']" | Out-String | ConvertFrom-Json
     if (!$accountInfo) {
         throw "account '$accountName' not found in subscription '$($sub.name)'. You can change current subscription with 'az account set --subscription <name>'"
     }
     $resourceGroup = $accountInfo[0].resourceGroup
     
-    $accessKeys = az storage account keys list --account-name $accountName | convertFrom-Json
+    $accessKeys = az storage account keys list --account-name $accountName | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) {
         throw "failed to retrieve account keys for account '$accountName' in rg '$resourceGroup'"
     }
-    write-verbose "using storage container '$resourceGroup/$accountName/$containerName/$key'" -Verbose
+    Write-Verbose "using storage container '$resourceGroup/$accountName/$containerName/$key'" -Verbose
 
-    $foundBlobs = az storage blob list --account-key $accessKeys[0].value --account-name $accountName --container-name $containerName --prefix $key | out-string | convertFrom-Json
+    $foundBlobs = az storage blob list --account-key $accessKeys[0].value --account-name $accountName --container-name $containerName --prefix $key | Out-String | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) {
         throw "FAILED CMD: az storage blob list"
     }
@@ -287,8 +289,8 @@ function Get-BackendConfig($statefile, $sub) {
         return $null
     }
     
-    write-verbose "found matching blobs:" -verbose
-    $foundBlobs | % { write-verbose $_.name -verbose }
+    Write-Verbose "found matching blobs:" -Verbose
+    $foundBlobs | % { Write-Verbose $_.name -Verbose }
 
     
     return @{
@@ -308,17 +310,17 @@ function Select-Subscription($envdata) {
     $targetSub = $envData.subscription
     
     if ($targetSub) {
-        write-verbose "switching to subscription '$targetSub'" -Verbose
+        Write-Verbose "switching to subscription '$targetSub'" -Verbose
         az account set -s $targetSub
     }
     else {
         Write-Warning "no subscription specified, using current one from az CLI"
     }
-    $sub = az account show | out-string | ConvertFrom-Json
+    $sub = az account show | Out-String | ConvertFrom-Json
 
     $envData.subscription = $sub.name
 
-    Write-Verbose "using subscription '$($sub.name)'" -Verbose
+    Write-Verbose "using subscription '$($sub.name)' ($($sub.id))" -Verbose
 
     return $sub
 }
@@ -356,12 +358,12 @@ function Out-TerraformVars(
     $file, 
     [Parameter(ValueFromPipeline, Mandatory = $true)] $dictionary, 
     [switch][bool] $append) {
-    if (!$append -and (test-path $file)) {
+    if (!$append -and (Test-Path $file)) {
         rm $file
     }
     $dictionary.GetEnumerator() | % {
         
-        "$($_.key)=`"$($_.value)`"" | out-file $file -encoding utf8 -Append
+        "$($_.key)=`"$($_.value)`"" | Out-File $file -Encoding utf8 -Append
     }
 }
 
