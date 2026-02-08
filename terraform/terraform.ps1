@@ -43,7 +43,7 @@ function Initialize-TerraformLocal {
             backend "local" {}
         }      
 "@
-    $provider_override | out-file "provider_override.tf" -encoding utf8
+    $provider_override | Out-File "provider_override.tf" -Encoding utf8
 
 
     $provider_vars | Out-TerraformVars "_provider.auto.tfvars"
@@ -84,13 +84,13 @@ function Initialize-TerraformBlob {
         Write-Warning "no statefile given and no env data for environment '$envName' found in .environments.yaml."
         Write-Warning "You can use '-statefile' paramater to provide statefile path, i.e.: '-statefile mystate.blob.core.windows.net/tfstates/foobar-infra-ci'"
         if ($envs -and $envs.keys) {
-            write-host "Available environments:"
-            $envs.keys | write-host
+            Write-Host "Available environments:"
+            $envs.keys | Write-Host
         }
         return
     }
     
-    $sub = select-subscription $envData
+    $sub = Select-Subscription $envData
     $backendConfig = Get-BackendConfig -statefile $envData.statefile -sub $sub
     $backendConfig | Out-TerraformVars "_backend.tfvars"
 
@@ -99,7 +99,7 @@ function Initialize-TerraformBlob {
             backend "azurerm" {}
         }      
 "@
-    $provider_override | out-file "provider_override.tf" -encoding utf8
+    $provider_override | Out-File "provider_override.tf" -Encoding utf8
 
 
     $a = @()
@@ -107,7 +107,7 @@ function Initialize-TerraformBlob {
     if ($upgrade) { $a += @("--upgrade") }
     if ($migrate) { $a += @("--migrate-state") }
 
-    write-verbose "terraform init --backend-config `"_backend.tfvars`" $a" -Verbose
+    Write-Verbose "terraform init --backend-config `"_backend.tfvars`" $a" -Verbose
     terraform init --backend-config "_backend.tfvars" $a
 
     if ($LASTEXITCODE -ne 0) { throw "terraform init failed" }
@@ -189,14 +189,16 @@ function Initialize-TerraformAzure {
 
     if ($key) {
         if (!$key.Contains($env)) {
-            write-warning "key '$key' does not contains environment name '$env'. Are you sure this is what you wanted?"
+            Write-Warning "key '$key' does not contains environment name '$env'. Are you sure this is what you wanted?"
         }
         # configure azurerm backend to use the same storage as pipelines
         if ($storageAccountName -ne $null) {
             $accountName = $storageAccountName
-        } elseif ($env:TF_STORAGE_ACCOUNT_NAME) {
+        }
+        elseif ($env:TF_STORAGE_ACCOUNT_NAME) {
             $accountName = $env:TF_STORAGE_ACCOUNT_NAME
-        } else {
+        }
+        else {
             Write-Warning "No storage account name provided. Set -storageAccountName or $env:TF_STORAGE_ACCOUNT_NAME to override."
             throw "Storage account name must be provided via -storageAccountName or TF_STORAGE_ACCOUNT_NAME environment variable."
         }
@@ -216,10 +218,115 @@ function Set-AzurePAT($pat) {
 }
 
 function Test-State ($statefile, [switch][bool]$newState) {
-    $state = terraform show -no-color | out-string
+    $state = terraform show -no-color | Out-String
     if (!$newState -and ([string]::IsNullOrWhitespace($state) -or $state.Trim() -eq "No state.")) { 
         throw "terraform state at '$statefile' is empty. Make sure you used the right name/env/key combination."
     }
+}
+
+<#
+.SYNOPSIS
+Initializes a new .environments.yaml configuration file
+
+.DESCRIPTION
+Creates or updates the .environments.yaml file with environment configuration.
+Prompts for any missing required parameters.
+Supports two ways to specify the state file location:
+- Full statefile path
+- Storage account name + project name (will use 'tfstates' container)
+
+.PARAMETER envName
+The name of the environment (e.g., 'prod', 'dev', 'ci')
+
+.PARAMETER statefile
+The full Azure blob storage path for the terraform state file in format: 
+account.blob.core.windows.net/container/key
+
+.PARAMETER storageAccountName
+The name of the Azure storage account (e.g., 'mystorageaccount')
+
+.PARAMETER projectName
+The name of the project/state file key (e.g., 'myproject')
+
+.PARAMETER subscription
+The Azure subscription name to use for this environment
+
+.EXAMPLE
+Initialize-EnvConfig -envName prod -statefile "mystorageaccount.blob.core.windows.net/tfstates/myproject" -subscription "Pay-As-You-Go"
+
+.EXAMPLE
+Initialize-EnvConfig -envName prod -storageAccountName "mystorageaccount" -projectName "myproject" -subscription "Pay-As-You-Go"
+
+.EXAMPLE
+Initialize-EnvConfig
+# Will prompt for all values interactively
+#>
+function Initialize-EnvConfig {
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$envName,
+        [Parameter(Mandatory = $false, ParameterSetName = "statefile")]
+        [string]$statefile,
+        [Parameter(Mandatory = $false, ParameterSetName = "components")]
+        [string]$storageAccountName,
+        [Parameter(Mandatory = $false, ParameterSetName = "components")]
+        [string]$projectName,
+        [Parameter(Mandatory = $false)]
+        [string]$subscription
+    )
+
+    # Prompt for missing parameters
+    if ([string]::IsNullOrWhiteSpace($envName)) {
+        $envName = Read-Host "Enter environment name (e.g., prod, dev, ci)"
+        if ([string]::IsNullOrWhiteSpace($envName)) {
+            throw "Environment name is required"
+        }
+    }
+
+    # Handle statefile - either from full path or from components
+    if ([string]::IsNullOrWhiteSpace($statefile)) {
+        # Check if we have components
+        if ([string]::IsNullOrWhiteSpace($storageAccountName)) {
+            $storageAccountName = Read-Host "Enter storage account name (e.g., mystorageaccount)"
+            if ([string]::IsNullOrWhiteSpace($storageAccountName)) {
+                throw "Storage account name is required"
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($projectName)) {
+            $projectName = Read-Host "Enter project name (e.g., myproject)"
+            if ([string]::IsNullOrWhiteSpace($projectName)) {
+                throw "Project name is required"
+            }
+        }
+        $statefile = "$storageAccountName.blob.core.windows.net/tfstates/$projectName"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($subscription)) {
+        $subscription = Read-Host "Enter Azure subscription name [Pay-As-You-Go]"
+        if ([string]::IsNullOrWhiteSpace($subscription)) {
+            Write-Warning "No subscription provided, defaulting to 'Pay-As-You-Go'"
+            $subscription = "Pay-As-You-Go"
+        }
+    }
+
+    # Load existing config or create new one
+    $config = Import-EnvConfig
+    if (!$config.envs) {
+        $config.envs = @{}
+    }
+
+    # Add or update the environment
+    $config.envs[$envName] = @{
+        statefile    = $statefile
+        subscription = $subscription
+    }
+
+    # Export the config
+    Export-EnvConfig $config
+
+    Write-Host "Environment '$envName' configured in .environments.yaml" -ForegroundColor Green
+    Write-Host "  statefile: $statefile"
+    Write-Host "  subscription: $subscription"
 }
 
 function Export-EnvConfig($config) {
@@ -231,7 +338,7 @@ function Import-EnvConfig {
     $filename = ".environments.yaml"
     $config = @{}
     if ((Test-Path $filename)) {
-        $config = get-content $filename | ConvertFrom-Yaml -Ordered
+        $config = Get-Content $filename | ConvertFrom-Yaml -Ordered
     }
     if (!$config) {
         $config = @{}
@@ -247,6 +354,8 @@ function Import-EnvConfig {
 }
 
 
+
+
 function Get-BackendConfig($statefile, $sub) {
     if (!($statefile -match "(?<account>.*).blob.core.windows.net/(?<container>.*)/(?<blob>.*)")) {
         throw "only azurerm state files are supported, in the format: '{account}.blob.core.windows.net/{container}/{blob}'"
@@ -256,26 +365,26 @@ function Get-BackendConfig($statefile, $sub) {
     $containerName = $matches["container"]
     $key = $matches["blob"]
 
-    Write-Verbose "looking for statefile container: $statefile" -verbose
+    Write-Verbose "looking for statefile container: $statefile" -Verbose
 
-    $accountInfo = az storage account list --query "[?name=='$($accountName)']" | out-string | ConvertFrom-Json
+    $accountInfo = az storage account list --query "[?name=='$($accountName)']" | Out-String | ConvertFrom-Json
     if (!$accountInfo) {
         throw "account '$accountName' not found in subscription '$($sub.name)'. You can change current subscription with 'az account set --subscription <name>'"
     }
     $resourceGroup = $accountInfo[0].resourceGroup
     
-    $accessKeys = az storage account keys list --account-name $accountName | convertFrom-Json
+    $accessKeys = az storage account keys list --account-name $accountName | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) {
         throw "failed to retrieve account keys for account '$accountName' in rg '$resourceGroup'"
     }
-    write-verbose "using storage container '$resourceGroup/$accountName/$containerName/$key'" -Verbose
+    Write-Verbose "using storage container '$resourceGroup/$accountName/$containerName/$key'" -Verbose
 
-    $foundBlobs = az storage blob list --account-key $accessKeys[0].value --account-name $accountName --container-name $containerName --prefix $key | out-string | convertFrom-Json
+    $foundBlobs = az storage blob list --account-key $accessKeys[0].value --account-name $accountName --container-name $containerName --prefix $key | Out-String | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) {
         throw "FAILED CMD: az storage blob list"
     }
     if (!$foundBlobs -and !$newState) {
-        throw "blob '$resourceGroup/$accountName/$containerName/$key' not found. If you're trying to use an existing state file, you probobly got the path to statefile wrong. If you want to create a new one, use -newState"
+        throw "the container '$resourceGroup/$accountName/$containerName' exists, but blob '$key' was not found. If you're trying to use an existing state file, you probobly got the path to statefile wrong. If you want to create a new one, use -newState"
     } 
 
     if ($list) {
@@ -287,8 +396,8 @@ function Get-BackendConfig($statefile, $sub) {
         return $null
     }
     
-    write-verbose "found matching blobs:" -verbose
-    $foundBlobs | % { write-verbose $_.name -verbose }
+    Write-Verbose "found matching blobs:" -Verbose
+    $foundBlobs | % { Write-Verbose $_.name -Verbose }
 
     
     return @{
@@ -308,13 +417,13 @@ function Select-Subscription($envdata) {
     $targetSub = $envData.subscription
     
     if ($targetSub) {
-        write-verbose "switching to subscription '$targetSub'" -Verbose
+        Write-Verbose "switching to subscription '$targetSub'" -Verbose
         az account set -s $targetSub
     }
     else {
         Write-Warning "no subscription specified, using current one from az CLI"
     }
-    $sub = az account show | out-string | ConvertFrom-Json
+    $sub = az account show | Out-String | ConvertFrom-Json
 
     $envData.subscription = $sub.name
 
@@ -356,12 +465,12 @@ function Out-TerraformVars(
     $file, 
     [Parameter(ValueFromPipeline, Mandatory = $true)] $dictionary, 
     [switch][bool] $append) {
-    if (!$append -and (test-path $file)) {
+    if (!$append -and (Test-Path $file)) {
         rm $file
     }
     $dictionary.GetEnumerator() | % {
         
-        "$($_.key)=`"$($_.value)`"" | out-file $file -encoding utf8 -Append
+        "$($_.key)=`"$($_.value)`"" | Out-File $file -Encoding utf8 -Append
     }
 }
 
@@ -403,4 +512,45 @@ function ParseErrors([string[]] $terraformOutput) {
     }
 
     return $result
+}
+
+function Get-PlanSummary {
+    param($planName = "plan.tfplan")
+
+    function Get-ActionText($action) {
+        $color = switch ($action) {
+            "create" { "`e[92m" }
+            "delete" { "`e[91m" }
+            "update" { "`e[93m" }
+            default { "`e[96m" }
+        }
+        return "$color$action`e[0m"
+    }
+
+    $dir = Split-Path -Parent $planName
+    $file = Split-Path -Leaf $planName
+
+    pushd $dir
+    try {
+        $plan = terraform show -json $file | ConvertFrom-Json
+        $changed = $plan.resource_changes | ? { $_.change.actions -ne @("no-op") }
+
+        if (!$changed) {
+            Write-Host "No changes detected."
+            return $null
+        }
+        else {
+            $actions = $changed | % {        
+                $changes = @($_.change.actions) | % { Get-ActionText($_) }    
+                return [PsCustomObject]@{
+                    address = $_.address
+                    change  = [string]::Join(",", $changes)
+                }
+            }
+            return $actions
+        }
+    }
+    finally {
+        popd
+    }
 }

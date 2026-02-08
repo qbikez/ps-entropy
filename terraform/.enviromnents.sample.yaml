@@ -1,0 +1,5 @@
+envs:
+  prod:
+    statefile: mystorageaccount.blob.core.windows.net/tfstates/myproject
+    subscription: Pay-As-You-Go
+
