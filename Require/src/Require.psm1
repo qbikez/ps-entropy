@@ -63,7 +63,7 @@ PS> Request-Module Pester -version 4.4
 function Request-Module { 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         $modules, 
         $version = $null,
         $package = $null,
@@ -71,7 +71,7 @@ function Request-Module {
         $source = "oneget",
         [switch][bool] $wait = $false,
         [Parameter()]
-        [ValidateSet("AllUsers","CurrentUser","Auto")]
+        [ValidateSet("AllUsers", "CurrentUser", "Auto")]
         [string] $scope = "CurrentUser",
         [switch][bool] $SkipPublisherCheck,
         [switch][bool] $AllowClobber = $true,
@@ -83,267 +83,250 @@ function Request-Module {
         $version = "999.999.999"
     }
     
-    import-module process -Global -Verbose:$false
+    Import-Module process -Global -Verbose:$false
     if ($scope -eq "Auto") {
         $scope = "CurrentUser"
-        if (test-IsAdmin) { $scope = "AllUsers" }
+        if (test-isadmin) { $scope = "AllUsers" }
     }
 
-    foreach($_ in $modules)
-    { 
+    foreach ($_ in $modules) { 
         $name = $_
         $currentversion = $null
-        $mo = gmo $_
+        $reloadPath = $null
+        $mo = Get-Module $_
         $loaded = $mo -ne $null
-        $found = $loaded
+        $found = $mo -ne $null
         if ($loaded) { $currentversion = $mo.Version[0] }
         if ($loaded -and !$reload -and ($mo.Version[0] -ge $version -or $version -eq $null)) { 
-            write-verbose "module $_ is loaded with version $($mo.version). Nothing to do here"
+            Write-Verbose "module $_ is loaded with version $($mo.version). Nothing to do here"
             return 
         }
      
-        if (!$loaded) {
-            try {
-                write-verbose "module $_ is not loaded. trying to load."
-                ipmo $_ -ErrorAction SilentlyContinue -Global -Verbose:$false
-                $mo = gmo $_
-                $loaded = $mo -ne $null
-                if ($loaded) {
-                    write-verbose "loaded"
-                }
-                
-                $found = $loaded
-            } catch {
-                write-verbose "failed to load module $name : $($_.Exception.Message)"
-            }
-        } 
-        
-       
-        if(!$found) {
-            $mo = gmo $_ -ListAvailable | sort version -Descending
-            write-verbose "module $_ not found"
-        }
-        $found = $mo -ne $null -and $mo.Version[0] -ge $version
-    
-        if ($mo -ne $null) {
-            write-verbose "found module $($mo.name) version $($mo.version). found=$found reload=$reload"
-        }
-        else {
-            write-verbose "module $_ not found"
+        if (!$found) {
+            Write-Verbose "module $_ not loaded. looking for available versions"
+            $available = @(Get-Module $_ -ListAvailable | sort version -Descending)
+            $matchingVers = @($available | ? { $_.Version -ge $version })
+            $mo = $matchingVers | select -First 1
+            $found = $mo -ne $null
         }
 
-        if(!$found -and $mo -ne $null) {
-            $available = @(gmo $_ -ListAvailable | sort version -Descending)
-            $mo = $available
-            $matchingVers = @($available | ? { $_.Version -ge $version })
-            $found = ($matchingVers.Length -gt 0)
-            write-verbose "found $($matchingVers.count) matching versions from total $($available.count)"
-            #$found = $available -ne $null
+    
+        if ($found) {
+            Write-Verbose "found module $($mo.name) version $($mo.version). requested version = $version. found=$found reload=$reload"
+        }
+        else {
+            Write-Verbose "module $_ not found"
         }
        
-        if ($mo -ne $null) {
-            write-verbose "version=$version mo=$mo mo.version=$($mo.Version[0]) requested version = $version"
-        }
-        if ($reload -or ($loaded -and $version -ne $null -and $currentversion -lt $version)) {
-            write-verbose "removing module $_"
-            if (gmo $_) { rmo $_ -Verbose:$false }
+        $needsReload = $reload -or ($version -ne $null -and $currentversion -lt $version)
+        if ($loaded -and $needsReload) {
+            Write-Verbose "removing module $mo"
+            $removedModule = $mo
+            Remove-Module $mo -Verbose:$false
         }
      
         function init-psget {
             if ($global:psgetready) {
                 return
             }
-            write-verbose "initializing psget"
-            if ((get-command Install-PackageProvider -module PackageManagement -ErrorAction Ignore) -ne $null) {
-               import-module PackageManagement -Verbose:$false
-               $nuget = get-packageprovider -Name Nuget -force -forcebootstrap
-               if ($nuget -eq $null) {
-                   write-host "installing nuget package provider"
-                   # this isn't availalbe in the current official release of oneget (?)
-                   install-packageprovider -Name NuGet -Force -MinimumVersion 2.8.5.201 -verbose
-               } 
-           }
-           import-module powershellget -Verbose:$false
-           if ((get-PSRepository -Name PSGallery).InstallationPolicy -ne "Trusted") {
-               Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-           }
-           $global:psgetready = $true
-       }
-       function RequestPowershellModule($name) {
-           $psrepository = $null
-           if ($source.startswith("psgallery:")) {
-               $psrepository = $source.substring("psgallery:".Length)
-           }
-           write-warning "trying powershellget package manager repository='$psrepository'"
-           init-psget
-           $islinked = $false
+            Write-Verbose "initializing psget"
+            if ((Get-Command Install-PackageProvider -Module PackageManagement -ErrorAction Ignore) -ne $null) {
+                Import-Module PackageManagement -Verbose:$false
+                $nuget = Get-PackageProvider -Name Nuget -Force -ForceBootstrap
+                if ($nuget -eq $null) {
+                    Write-Host "installing nuget package provider"
+                    # this isn't availalbe in the current official release of oneget (?)
+                    Install-PackageProvider -Name NuGet -Force -MinimumVersion 2.8.5.201 -Verbose
+                } 
+            }
+            Import-Module powershellget -Verbose:$false
+            if ((Get-PSRepository -Name PSGallery).InstallationPolicy -ne "Trusted") {
+                Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+            }
+            $global:psgetready = $true
+        }
+        function RequestPowershellModule($name) {
+            $psrepository = $null
+            if ($source.startswith("psgallery:")) {
+                $psrepository = $source.substring("psgallery:".Length)
+            }
+            Write-Warning "trying powershellget package manager repository='$psrepository'"
+            init-psget
+            $islinked = $false
            
-           if ($mo -eq $null) {
-               $p = @{
-                   Name = $name
-                   Verbose = $true
-                   Scope = $scope
-                   ErrorAction = "Stop"
-               }
+            if ($mo -eq $null) {
+                $p = @{
+                    Name        = $name
+                    Verbose     = $true
+                    Scope       = $scope
+                    ErrorAction = "Stop"
+                }
    
    
-               if ($AllowClobber -and ((get-command install-module).Parameters.AllowClobber) -ne $null) {
-                   $p += @{ AllowClobber = $true }  
-               } 
-               if ($SkipPublisherCheck -and ((get-command install-module).Parameters.SkipPublisherCheck) -ne $null) {
-                   $p += @{ SkipPublisherCheck = $true }  
-               } 
-               if ($Force) {
-                   $p += @{ Force = $true }
-               }
+                if ($AllowClobber -and ((Get-Command install-module).Parameters.AllowClobber) -ne $null) {
+                    $p += @{ AllowClobber = $true }  
+                } 
+                if ($SkipPublisherCheck -and ((Get-Command install-module).Parameters.SkipPublisherCheck) -ne $null) {
+                    $p += @{ SkipPublisherCheck = $true }  
+                } 
+                if ($Force) {
+                    $p += @{ Force = $true }
+                }
 
-               if ($psrepository -ne $null) {
-                   $p += @{ Repository = $psrepository }
-               }
-               $cmd = "install-module"
-               write-warning "$cmd [scope=$scope]"                       
-               foreach($kvp in $p.GetEnumerator()) {
-                   $val = $kvp.value
-                   if ($val -eq $true) { $val = "`$true" }
-                   $cmd += " -$($kvp.key):$($val)"
-               }
-               if ($scope -eq "CurrentUser") {                       
-                   install-module @p
-               } else {
-                   Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait       
-                   if ($LASTEXITCODE -ne 0) { write-error "install-module failed" }                 
-               }
-           }            
-           else {
+                if ($psrepository -ne $null) {
+                    $p += @{ Repository = $psrepository }
+                }
+                $cmd = "install-module"
+                Write-Warning "$cmd [scope=$scope]"                       
+                foreach ($kvp in $p.GetEnumerator()) {
+                    $val = $kvp.value
+                    if ($val -eq $true) { $val = "`$true" }
+                    $cmd += " -$($kvp.key):$($val)"
+                }
+                if ($scope -eq "CurrentUser") {                       
+                    Install-Module @p
+                }
+                else {
+                    Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -Wait       
+                    if ($LASTEXITCODE -ne 0) { Write-Error "install-module failed" }                 
+                }
+            }            
+            else {
                
-               # remove module to avoid loading multiple versions                    
-               rmo $name -erroraction Ignore
-               $toupdate = $name
-               $p = @{
-                   Name = $toupdate
-                   Verbose = $true
-                   ErrorAction = "Stop"
-               }
-               if ($psrepository -ne $null) {
-                   # update-module has no repository parameter
-                 #  $p += @{ Repository = $psrepository }
-               }
-               $cmd = "update-module"
-               foreach($kvp in $p.GetEnumerator()) {
-                   $val = $kvp.value
-                   if ($val -eq $true) { $val = "`$true" }
-                   $cmd += " -$($kvp.key):$($val)"
-               }
-               write-warning "$cmd [scope=$scope]"                    
-               if ($scope -eq "CurrentUser") {
-                   try {   
-                       ipmo pathutils -Verbose:$false
-                       $path = $mo.path                       
-                       try {
-                           $target = pathutils\Get-JunctionTarget (split-path -parent $path)
-                           $islinked = $target -ne $null
-                       } catch {
-                           write-warning $_.Exception.message
-                       }
-                       if ($islinked) {
-                           write-verbose "module $toupdate is linked to path $target. updating from source control"
-                           pathutils\update-modulelink $toupdate -ErrorAction stop
-                       } else {
-                            write-verbose "updating module $toupdate"
-                           update-module @p                                      
-                       }
-                   } catch {
-                       if ($_.Exception.Message.Contains("Install-Module")) { 
-                           # "was not installed by using Install-Module"
-                           throw
-                       }
-                       elseif ($_.Exception.Message.Contains("Administrator")) {
-                           # "cannot be updated because Administrator rights are required"
-                           write-warning "need to update module as admin"
-                           # if module was installed as Admin, try to update as admin
-                           Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
-                           if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
-                       }
-                       else {
-                           throw
-                       }
-                   }
-               } else {
-                   Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait
-                   if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }
+                # remove module to avoid loading multiple versions                    
+                Remove-Module $name -ErrorAction Ignore
+                $toupdate = $name
+                $p = @{
+                    Name        = $toupdate
+                    Verbose     = $true
+                    ErrorAction = "Stop"
+                }
+                if ($psrepository -ne $null) {
+                    # update-module has no repository parameter
+                    #  $p += @{ Repository = $psrepository }
+                }
+                $cmd = "update-module"
+                foreach ($kvp in $p.GetEnumerator()) {
+                    $val = $kvp.value
+                    if ($val -eq $true) { $val = "`$true" }
+                    $cmd += " -$($kvp.key):$($val)"
+                }
+                Write-Warning "$cmd [scope=$scope]"                    
+                if ($scope -eq "CurrentUser") {
+                    try {   
+                        Import-Module pathutils -Verbose:$false
+                        $path = $mo.path                       
+                        try {
+                            $target = pathutils\Get-JunctionTarget (Split-Path -Parent $path)
+                            $islinked = $target -ne $null
+                        }
+                        catch {
+                            Write-Warning $_.Exception.message
+                        }
+                        if ($islinked) {
+                            Write-Verbose "module $toupdate is linked to path $target. updating from source control"
+                            pathutils\Update-ModuleLink $toupdate -ErrorAction stop
+                        }
+                        else {
+                            Write-Verbose "updating module $toupdate"
+                            Update-Module @p                                      
+                        }
+                    }
+                    catch {
+                        if ($_.Exception.Message.Contains("Install-Module")) { 
+                            # "was not installed by using Install-Module"
+                            throw
+                        }
+                        elseif ($_.Exception.Message.Contains("Administrator")) {
+                            # "cannot be updated because Administrator rights are required"
+                            Write-Warning "need to update module as admin"
+                            # if module was installed as Admin, try to update as admin
+                            Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -Wait    
+                            if ($LASTEXITCODE -ne 0) { Write-Error "update-module failed" }
+                        }
+                        else {
+                            throw
+                        }
+                    }
+                }
+                else {
+                    Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -Wait
+                    if ($LASTEXITCODE -ne 0) { Write-Error "update-module failed" }
    
-               }
-           }
-           $mo = gmo $name -ListAvailable | sort version -Descending | select -first 1   
+                }
+            }
+            $mo = Get-Module $name -ListAvailable | sort version -Descending | select -First 1   
            
-           if ($mo -ne $null -and $mo.Version[0] -lt $version -and !$islinked) {
-               # ups, update-module did not succeed?
-               # if module is already installed, oneget will try to update from same repositoty
-               # if the repository has changed, we need to force install 
+            if ($mo -ne $null -and $mo.Version[0] -lt $version -and !$islinked) {
+                # ups, update-module did not succeed?
+                # if module is already installed, oneget will try to update from same repositoty
+                # if the repository has changed, we need to force install 
    
-               write-warning "requested module $name version $version, but found $($mo.Version[0])!"
-               $p = @{
-                   Name = $name
-                   Verbose = $true
-                   Scope = $scope
-                   ErrorAction = "Stop"
-                   Force = $true
-               }
-               if ($AllowClobber -and ((get-command install-module).Parameters.AllowClobber) -ne $null) {
-                   $p += @{ AllowClobber = $true }  
-               } 
-               if ($SkipPublisherCheck -and ((get-command install-module).Parameters.SkipPublisherCheck) -ne $null) {
-                   $p += @{ SkipPublisherCheck = $true }  
-               } 
-               if ($psrepository -ne $null) {
-                   $p += @{ Repository = $psrepository }
-               }
-               $cmd = "install-module"
-               write-warning "trying again: $cmd [scope=$scope]"
+                Write-Warning "requested module $name version $version, but found $($mo.Version[0])!"
+                $p = @{
+                    Name        = $name
+                    Verbose     = $true
+                    Scope       = $scope
+                    ErrorAction = "Stop"
+                    Force       = $true
+                }
+                if ($AllowClobber -and ((Get-Command install-module).Parameters.AllowClobber) -ne $null) {
+                    $p += @{ AllowClobber = $true }  
+                } 
+                if ($SkipPublisherCheck -and ((Get-Command install-module).Parameters.SkipPublisherCheck) -ne $null) {
+                    $p += @{ SkipPublisherCheck = $true }  
+                } 
+                if ($psrepository -ne $null) {
+                    $p += @{ Repository = $psrepository }
+                }
+                $cmd = "install-module"
+                Write-Warning "trying again: $cmd [scope=$scope]"
          
-               foreach($kvp in $p.GetEnumerator()) {
-                   $val = $kvp.value
-                   if ($val -eq $true) { $val = "`$true" }
-                   $cmd += " -$($kvp.key):$($val)"
-               }
-               if ($scope -eq "CurrentUser") {                       
-                   install-module @p
-               } else {                      
-                   Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -wait    
-                   if ($LASTEXITCODE -ne 0) { write-error "update-module failed" }                    
-               }
-               $mo = gmo $name -ListAvailable | sort version -Descending | select -first 1  
-           }
+                foreach ($kvp in $p.GetEnumerator()) {
+                    $val = $kvp.value
+                    if ($val -eq $true) { $val = "`$true" }
+                    $cmd += " -$($kvp.key):$($val)"
+                }
+                if ($scope -eq "CurrentUser") {                       
+                    Install-Module @p
+                }
+                else {                      
+                    Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -Wait    
+                    if ($LASTEXITCODE -ne 0) { Write-Error "update-module failed" }                    
+                }
+                $mo = Get-Module $name -ListAvailable | sort version -Descending | select -First 1  
+            }
    
-           if ($mo -eq $null) { 
-               Write-Warning "failed to install module $name through oneget"
-               Write-Warning "available modules:"
-               $list = find-module $name
-               $list
-           } elseif ($mo.Version[0] -lt $version -and $original_version -ne "latest") {
-               Write-Warning "modules found:"
-               $m = find-module $name
-               $m | Format-Table | Out-String | Write-Warning                    
-               Write-Warning "sources:"
-               $s = Get-PackageSource
-               $s | Format-Table | Out-String | Write-Warning
-           }   
-       }
-       function RequestChocoPackage($name) {
-           if ($mo -eq $null) {
-               # install 
-               $cmd = "Process\invoke choco install -y $package -verbose"
-               if ($source.startswith("choco:")) {
-                   $customsource = $source.substring("choco:".length)
-                   $cmd = "Process\invoke choco install -y $package -source $customsource -verbose"
-               }
-               $processModulePath = split-path -parent (gmo Process).path
-               # ensure choco is installed, then install package
-               Invoke-AsAdmin -ArgumentList @("-Command", "
+            if ($mo -eq $null) { 
+                Write-Warning "failed to install module $name through oneget"
+                Write-Warning "available modules:"
+                $list = Find-Module $name
+                $list
+            }
+            elseif ($mo.Version[0] -lt $version -and $original_version -ne "latest") {
+                Write-Warning "modules found:"
+                $m = Find-Module $name
+                $m | Format-Table | Out-String | Write-Warning                    
+                Write-Warning "sources:"
+                $s = Get-PackageSource
+                $s | Format-Table | Out-String | Write-Warning
+            }   
+        }
+        function RequestChocoPackage($name) {
+            if ($mo -eq $null) {
+                # install 
+                $cmd = "Process\invoke choco install -y $package -verbose"
+                if ($source.startswith("choco:")) {
+                    $customsource = $source.substring("choco:".length)
+                    $cmd = "Process\invoke choco install -y $package -source $customsource -verbose"
+                }
+                $processModulePath = Split-Path -Parent (Get-Module Process).path
+                # ensure choco is installed, then install package
+                Invoke-AsAdmin -ArgumentList @("-Command", "
                    try {
                       `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
                    . '$PSScriptRoot\functions\helpers.ps1';
-                   ipmo Require
+                   Import-Module Require
                    req Process
                    write-host 'Ensuring chocolatey is installed';
                    _ensure-choco;
@@ -352,28 +335,28 @@ function Request-Module {
                    } finally {
                        if (`$$wait) { Read-Host 'press Enter to close  this window and continue'; }
                    }
-               ") -wait
-               if ($LASTEXITCODE -ne 0) { write-error "choco install failed" }
+               ") -Wait
+                if ($LASTEXITCODE -ne 0) { Write-Error "choco install failed" }
    
-               #refresh PSModulePath
-               # throw "Module $name not found. `r`nSearched paths: $($env:PSModulePath)"
-           }
-           elseif ($mo.Version[0] -lt $version) {
-               # update
-               write-warning "requested module $name version $version, but found $($mo.Version[0])!"
-               # ensure choco is installed, then upgrade package
-               $cmd = "Process\invoke choco upgrade -y $package -verbose"
-               if ($source.startswith("choco:")) {
-                   $customsource = $source.substring("choco:".length)
-                   $cmd = "Process\invoke choco upgrade -y $package -source $customsource -verbose"
-               }
-               $processModulePath = split-path -parent ((gmo Process).path)
+                #refresh PSModulePath
+                # throw "Module $name not found. `r`nSearched paths: $($env:PSModulePath)"
+            }
+            elseif ($mo.Version[0] -lt $version) {
+                # update
+                Write-Warning "requested module $name version $version, but found $($mo.Version[0])!"
+                # ensure choco is installed, then upgrade package
+                $cmd = "Process\invoke choco upgrade -y $package -verbose"
+                if ($source.startswith("choco:")) {
+                    $customsource = $source.substring("choco:".length)
+                    $cmd = "Process\invoke choco upgrade -y $package -source $customsource -verbose"
+                }
+                $processModulePath = Split-Path -Parent ((Get-Module Process).path)
       
-               Invoke-AsAdmin -ArgumentList @("-Command", "
+                Invoke-AsAdmin -ArgumentList @("-Command", "
                    try {       
                    `$ex = `$null;              
                    `$env:PSModulePath = `$env:PSModulePath + ';$processModulePath'
-                   ipmo Require
+                   Import-Module Require
                    req Process
                    . '$PSScriptRoot\functions\helpers.ps1';
                    write-host 'Ensuring chocolatey is installed';
@@ -391,47 +374,62 @@ function Request-Module {
                    }
                    finally {
                    }
-               ") -wait  
-               if ($LASTEXITCODE -ne 0) { write-error "choco upgrade failed" }
+               ") -Wait  
+                if ($LASTEXITCODE -ne 0) { Write-Error "choco upgrade failed" }
    
-           }
+            }
    
-           refresh-modulepath 
-           if ($mo -ne $null) { rmo $name }
-           ipmo $name -ErrorAction Ignore
-       }
+            refresh-modulepath 
+            if ($mo -ne $null) { Remove-Module $name }
+            Import-Module $name -ErrorAction Ignore
+        }
    
        
         if (!$found) {
-            . "$PSScriptRoot\functions\helpers.ps1";
+            . "$PSScriptRoot\functions\helpers.ps1"
             
             $verstring = "not found"
             if ($currentversion -ne $null) { $verstring = "is not satisfied by current version=$currentversion" }
-			write-warning "module $_ version >= $version $verstring. installing from $source"
+            Write-Warning "module $_ version >= $version $verstring. installing from $source"
             if ($source -eq "choco" -or $source.startswith("choco:")) {
                 requestchocopackage -name $_
             }
-            if ($source -in "oneget","psget","powershellget","psgallery" -or $source.startswith("psgallery:")) {
+            if ($source -in "oneget", "psget", "powershellget", "psgallery" -or $source.startswith("psgallery:")) {
                 RequestPowershellModule -name $_
             }
             
-            $mo = gmo $name -ListAvailable | sort version -Descending
+            $mo = Get-Module $name -ListAvailable | sort version -Descending
             $found = $mo -ne $null -and $mo.Version[0] -ge $version
-        } else {
+        }
+        else {
             if (($matchingvers -ne $null) -and ($matchingvers.count -ge 0)) {
-                ipmo $_ -MinimumVersion $version
-                $mo = gmo $_
+                Import-Module $_ -MinimumVersion $version
+                $mo = Get-Module $_
             }
         }
 
-               
+        if ($removedModule) {
+            $moduleDir = Split-Path $removedModule.Path -Parent
+            $isFromSource = $false
+            try {
+                $gitCheck = git -C $moduleDir rev-parse --is-inside-work-tree 2>$null
+                $isFromSource = ($gitCheck -eq "true")
+            }
+            catch {}
+            if ($isFromSource) {
+                Write-Verbose "Module $_ was loaded from source: '$($removedModule.Path)'. Reloading from the same path."
+                Import-Module $removedModule.Path -DisableNameChecking -Global -Force -ErrorAction stop
+                continue
+            }
+        }
+
         if (!($mo)) {          
             throw "Module $_ not found. `r`nSearched paths: $($env:PSModulePath)"
         }
         if ($original_version -eq "latest") {
             Import-Module $_ -DisableNameChecking -Global -ErrorAction stop
-            $mo = gmo $_
-            write-host "lastest version of module $_ : $($mo.version)"
+            $mo = Get-Module $_
+            Write-Host "lastest version of module $_ : $($mo.version)"
         }
         else {
             if ($mo.Version[0] -lt $version) {
@@ -445,7 +443,7 @@ function Request-Module {
 }
 
 
-if ((get-alias Require-Module -ErrorAction ignore) -eq $null) { new-alias Require-Module Request-Module }
-if ((get-alias req -ErrorAction ignore) -eq $null) { new-alias req Request-Module }
+if ((Get-Alias Require-Module -ErrorAction ignore) -eq $null) { New-Alias Require-Module Request-Module }
+if ((Get-Alias req -ErrorAction ignore) -eq $null) { New-Alias req Request-Module }
 
 Export-ModuleMember -Function "Request-Module" -Alias *
