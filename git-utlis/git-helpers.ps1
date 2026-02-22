@@ -129,7 +129,57 @@ function global:Set-LocationEx {
     Microsoft.PowerShell.Management\Set-Location @PSBoundParameters
 }
 
+function global:Get-ChildItemEx {
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0, ValueFromPipelineByPropertyName = $true)]
+        [string]$Path = "."
+    )
+
+    if ($Path -match '^wt:[\\/]?(.*)$') {
+        $subPath = $Matches[1]
+
+        if (-not $subPath) {
+            Get-GitWorktree | ForEach-Object {
+                $name = Split-Path -Leaf $_.Path
+                [PSCustomObject]@{
+                    PSChildName = $name
+                    Mode        = 'd----'
+                    Name        = $name
+                    FullName    = "wt:\\$name"
+                    Branch      = $_.Branch
+                    CommitHash  = $_.CommitHash
+                    IsDetached  = $_.IsDetached
+                    IsPrunable  = $_.IsPrunable
+                }
+            }
+            return
+        }
+
+        $worktrees = Get-GitWorktree
+        if (-not $worktrees) {
+            return
+        }
+
+        $target = $worktrees | Where-Object {
+            (Split-Path -Leaf $_.Path) -like "*$subPath*"
+        } | Select-Object -First 1
+
+        if ($null -eq $target) {
+            Write-Error "Worktree not found: $subPath"
+            return
+        }
+
+        Microsoft.PowerShell.Management\Get-ChildItem -Path $target.Path
+        return
+    }
+
+    Microsoft.PowerShell.Management\Get-ChildItem @PSBoundParameters
+}
+
 Set-Alias -Name cd -Value Set-LocationEx -Option AllScope -Scope Global
+Set-Alias -Name ls -Value Get-ChildItemEx -Option AllScope -Scope Global
+Set-Alias -Name dir -Value Get-ChildItemEx -Option AllScope -Scope Global
 
 
 New-Alias "git-wt" Get-GitWorktree -Scope Global -Force
