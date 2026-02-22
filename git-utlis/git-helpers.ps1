@@ -48,6 +48,17 @@ function global:Get-GitWorktree {
         Pop-Location
     }
 
+    $repoRoot = $null
+    try {
+        $repoRoot = & git rev-parse --show-toplevel 2>$null
+        if ($LASTEXITCODE -eq 0 -and $repoRoot) {
+            $repoRoot = (Resolve-Path -LiteralPath $repoRoot).Path
+        }
+    }
+    catch {
+        $repoRoot = $null
+    }
+
     $worktrees = @()
 
     try {
@@ -75,12 +86,24 @@ function global:Get-GitWorktree {
                 $isPrunable = $status -eq "prunable"
                 $branch = if (!$isDetached -and !$isPrunable) { $status } else { $null }
                 
+                $isMain = $false
+                if ($repoRoot) {
+                    try {
+                        $resolvedPath = (Resolve-Path -LiteralPath $path).Path
+                        $isMain = [string]::Equals($resolvedPath, $repoRoot, [System.StringComparison]::OrdinalIgnoreCase)
+                    }
+                    catch {
+                        $isMain = $false
+                    }
+                }
+
                 $o = [PSCustomObject]@{
                     Path       = $path
                     CommitHash = $commitHash
                     Branch     = $branch
                     IsDetached = $isDetached
                     IsPrunable = $isPrunable
+                    IsMain     = $isMain
                 }
                 Write-Output $o
             }
@@ -101,12 +124,47 @@ function global:Set-LocationEx {
     )
 
     if ($Path -match '^wt:[\\/]?(.*)$') {
-        $worktreeName = $Matches[1]
+        $normalized = $Matches[1].Trim('\', '/')
 
-        if (-not $worktreeName) {
-            Get-GitWorktree | Format-Table Path, Branch, CommitHash, IsDetached, IsPrunable
+        $currentRelativePath = $null
+        try {
+            $currentRoot = & git rev-parse --show-toplevel 2>$null
+            if ($LASTEXITCODE -eq 0 -and $currentRoot) {
+                $currentRoot = (Resolve-Path -LiteralPath $currentRoot).Path
+                $currentLocation = (Resolve-Path -LiteralPath (Get-Location).Path).Path
+                if ($currentLocation -like "$currentRoot*") {
+                    $suffix = $currentLocation.Substring($currentRoot.Length).TrimStart('\', '/')
+                    if ($suffix) {
+                        $currentRelativePath = $suffix
+                    }
+                }
+            }
+        }
+        catch {
+            $currentRelativePath = $null
+        }
+
+        if (-not $normalized) {
+            $main = Get-GitWorktree | Where-Object { $_.IsMain } | Select-Object -First 1
+            if ($null -ne $main) {
+                $destination = $main.Path
+                if ($currentRelativePath) {
+                    $candidate = Join-Path -Path $main.Path -ChildPath $currentRelativePath
+                    if (Test-Path -LiteralPath $candidate) {
+                        $destination = $candidate
+                    }
+                    else {
+                        Write-Warning "Subdirectory not found in target worktree: $currentRelativePath"
+                    }
+                }
+                Microsoft.PowerShell.Management\Set-Location -Path $destination -PassThru:$PassThru
+            }
             return
         }
+
+        $segments = $normalized -split '[\\/]'
+        $worktreeName = $segments[0]
+        $relativePath = ($segments | Select-Object -Skip 1) -join [System.IO.Path]::DirectorySeparatorChar
 
         $worktrees = Get-GitWorktree
         if (-not $worktrees) {
@@ -122,7 +180,23 @@ function global:Set-LocationEx {
             return
         }
 
-        Microsoft.PowerShell.Management\Set-Location -Path $target.Path -PassThru:$PassThru
+        $destination = if ($relativePath) {
+            Join-Path -Path $target.Path -ChildPath $relativePath
+        }
+        elseif ($currentRelativePath) {
+            $candidate = Join-Path -Path $target.Path -ChildPath $currentRelativePath
+            if (Test-Path -LiteralPath $candidate) {
+                $candidate
+            }
+            else {
+                Write-Warning "Subdirectory not found in target worktree: $currentRelativePath"
+                $target.Path
+            }
+        }
+        else {
+            $target.Path
+        }
+        Microsoft.PowerShell.Management\Set-Location -Path $destination -PassThru:$PassThru
         return
     }
 
@@ -137,24 +211,30 @@ function global:Get-ChildItemEx {
     )
 
     if ($Path -match '^wt:[\\/]?(.*)$') {
-        $subPath = $Matches[1]
+        $normalized = $Matches[1].Trim('\', '/')
 
-        if (-not $subPath) {
+        if (-not $normalized) {
             Get-GitWorktree | ForEach-Object {
-                $name = Split-Path -Leaf $_.Path
+                $name = if ($_.IsMain) { '\' } else { Split-Path -Leaf $_.Path }
+                $fullName = if ($_.IsMain) { 'wt:\' } else { "wt:\$name" }
                 [PSCustomObject]@{
                     PSChildName = $name
                     Mode        = 'd----'
                     Name        = $name
-                    FullName    = "wt:\\$name"
+                    FullName    = $fullName
                     Branch      = $_.Branch
                     CommitHash  = $_.CommitHash
                     IsDetached  = $_.IsDetached
                     IsPrunable  = $_.IsPrunable
+                    IsMain      = $_.IsMain
                 }
             }
             return
         }
+
+        $segments = $normalized -split '[\\/]'
+        $worktreeName = $segments[0]
+        $relativePath = ($segments | Select-Object -Skip 1) -join [System.IO.Path]::DirectorySeparatorChar
 
         $worktrees = Get-GitWorktree
         if (-not $worktrees) {
@@ -162,19 +242,55 @@ function global:Get-ChildItemEx {
         }
 
         $target = $worktrees | Where-Object {
-            (Split-Path -Leaf $_.Path) -like "*$subPath*"
+            (Split-Path -Leaf $_.Path) -like "*$worktreeName*"
         } | Select-Object -First 1
 
         if ($null -eq $target) {
-            Write-Error "Worktree not found: $subPath"
+            Write-Error "Worktree not found: $worktreeName"
             return
         }
 
-        Microsoft.PowerShell.Management\Get-ChildItem -Path $target.Path
+        $destination = if ($relativePath) { Join-Path -Path $target.Path -ChildPath $relativePath } else { $target.Path }
+        Microsoft.PowerShell.Management\Get-ChildItem -Path $destination
         return
     }
 
     Microsoft.PowerShell.Management\Get-ChildItem @PSBoundParameters
+}
+
+Register-ArgumentCompleter -CommandName Set-LocationEx, Set-Location, cd, Get-ChildItemEx, Get-ChildItem, ls, dir -ParameterName Path -ScriptBlock {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+
+    if ($wordToComplete -notlike 'wt:*') {
+        return
+    }
+
+    $prefix = if ($wordToComplete -match '^wt:[\\/]?(.*)') { $Matches[1] } else { '' }
+
+    if (-not $prefix) {
+        [System.Management.Automation.CompletionResult]::new(
+            'wt:\',
+            'wt:\',
+            'ProviderContainer',
+            'Main worktree'
+        )
+    }
+
+    Get-GitWorktree | ForEach-Object {
+        $name = Split-Path -Leaf $_.Path
+        if ($name -like "$prefix*") {
+            $completionText = "wt:\$name"
+            $listText = $name
+            $tooltip = if ($_.Branch) { "$($_.Branch) - $($_.CommitHash)" } else { $_.CommitHash }
+
+            [System.Management.Automation.CompletionResult]::new(
+                $completionText,
+                $listText,
+                'ProviderItem',
+                $tooltip
+            )
+        }
+    }
 }
 
 Set-Alias -Name cd -Value Set-LocationEx -Option AllScope -Scope Global
