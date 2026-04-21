@@ -146,6 +146,13 @@ function Request-Module {
             $global:psgetready = $true
         }
         function RequestPowershellModule($name) {
+            function Resolve-AvailableModule($moduleName) {
+                $getModule = Get-Command Get-Module -ErrorAction Ignore
+                if ($getModule -ne $null -and $getModule.Parameters.ContainsKey("Refresh")) {
+                    return Get-Module $moduleName -ListAvailable -Refresh | sort version -Descending | select -First 1
+                }
+                return Get-Module $moduleName -ListAvailable | sort version -Descending | select -First 1
+            }
             $psrepository = $null
             if ($source.startswith("psgallery:")) {
                 $psrepository = $source.substring("psgallery:".Length)
@@ -255,7 +262,13 @@ function Request-Module {
    
                 }
             }
-            $mo = Get-Module $name -ListAvailable | sort version -Descending | select -First 1   
+            # Re-sync PSModulePath after install/update, especially in CI/non-interactive sessions.
+            # PowerShellGet can install into a path that is not visible to the current process yet.
+            . "$PSScriptRoot\functions\helpers.ps1"
+            refresh-modulepath
+
+            # Force module discovery to avoid stale module analysis cache.
+            $mo = Resolve-AvailableModule -moduleName $name
            
             if ($mo -ne $null -and $mo.Version[0] -lt $version -and !$islinked) {
                 # ups, update-module did not succeed?
@@ -294,7 +307,8 @@ function Request-Module {
                     Invoke-AsAdmin -ArgumentList @("-Command", $cmd) -Wait    
                     if ($LASTEXITCODE -ne 0) { Write-Error "update-module failed" }                    
                 }
-                $mo = Get-Module $name -ListAvailable | sort version -Descending | select -First 1  
+                refresh-modulepath
+                $mo = Resolve-AvailableModule -moduleName $name
             }
    
             if ($mo -eq $null) { 
@@ -401,7 +415,14 @@ function Request-Module {
                 RequestPowershellModule -name $_
             }
             
-            $mo = Get-Module $name -ListAvailable | sort version -Descending
+            refresh-modulepath
+            $getModule = Get-Command Get-Module -ErrorAction Ignore
+            if ($getModule -ne $null -and $getModule.Parameters.ContainsKey("Refresh")) {
+                $mo = Get-Module $name -ListAvailable -Refresh | sort version -Descending
+            }
+            else {
+                $mo = Get-Module $name -ListAvailable | sort version -Descending
+            }
             $found = $mo -ne $null -and $mo.Version[0] -ge $version
         }
         else {

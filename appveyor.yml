@@ -1,14 +1,13 @@
 version: 1.0.{build}
 #clone_script:
-#- ps: 'write-host "cloning... this replaces default clone method"'
+#- pwsh: 'write-host "cloning... this replaces default clone method"'
 
 install:
-- set PATH=C:\Ruby25\bin;%PATH%
-- git submodule update --init --recursive
-- ps: scripts/lib/init.ps1 .
-- ps: scripts/init.ps1 .
-- ps: scripts/lib/restore.ps1 .
-- ps: scripts/restore.ps1
+- pwsh: git submodule update --init --recursive
+- pwsh: scripts/lib/init.ps1 .
+- pwsh: scripts/init.ps1 .
+- pwsh: scripts/lib/restore.ps1 .
+- pwsh: scripts/restore.ps1
 
 #assembly_info:
 #  patch: true
@@ -18,21 +17,21 @@ install:
 #  assembly_informational_version: '{version}'
 
 build_script:
-- ps: write-host "no need to build powershell"
+- pwsh: write-host "no need to build powershell"
 test_script:
-- ps: scripts/test.appveyor.ps1
+- pwsh: scripts/test.appveyor.ps1
 
 on_success:
-- ps: 'write-host "event: build success!"'
+- pwsh: 'write-host "event: build success!"'
 on_failure:
-- ps: 'write-host "event: build error!"'
+- pwsh: 'write-host "event: build error!"'
 on_finish:
-- ps: 'write-host "event: build finish!"'
+- pwsh: 'write-host "event: build finish!"'
 
 # TODO: only push modules that changed
 deploy_script:
-- ps: $branch = $env:APPVEYOR_REPO_BRANCH; write-host "Branch=$branch"
-- ps: >-
+- pwsh: $branch = $env:APPVEYOR_REPO_BRANCH; write-host "Branch=$branch"
+- pwsh: >-
     $branch = $env:APPVEYOR_REPO_BRANCH;
     $autodeploy = $false;
     if ($autodeploy) {
