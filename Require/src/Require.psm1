@@ -314,7 +314,7 @@ function Request-Module {
             if ($mo -eq $null) { 
                 Write-Warning "failed to install module $name through Install-Module"
                 Write-Warning "modules available locally:"
-                $local = Get-Module $name -ListAvailable
+                $local = Get-Module $name -ListAvailable -All | select ModuleType,Version,PreRelease,Name,PSEdition,Path,CompatiblePSEditions
                 $local
                 Write-Warning "modules available in PSGallery:"
                 $list = Find-Module $name
