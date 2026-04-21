@@ -150,7 +150,7 @@ function Request-Module {
             if ($source.startswith("psgallery:")) {
                 $psrepository = $source.substring("psgallery:".Length)
             }
-            Write-Warning "trying powershellget package manager repository='$psrepository'"
+            Write-Warning "trying powershellget package manager source='$source' repository='$psrepository'"
             init-psget
             $islinked = $false
            
@@ -298,13 +298,16 @@ function Request-Module {
             }
    
             if ($mo -eq $null) { 
-                Write-Warning "failed to install module $name through oneget"
-                Write-Warning "available modules:"
+                Write-Warning "failed to install module $name through Install-Module"
+                Write-Warning "modules available locally:"
+                $local = Get-Module $name -ListAvailable
+                $local
+                Write-Warning "modules available in PSGallery:"
                 $list = Find-Module $name
                 $list
             }
             elseif ($mo.Version[0] -lt $version -and $original_version -ne "latest") {
-                Write-Warning "modules found:"
+                Write-Warning "modules available in PSGallery:"
                 $m = Find-Module $name
                 $m | Format-Table | Out-String | Write-Warning                    
                 Write-Warning "sources:"
