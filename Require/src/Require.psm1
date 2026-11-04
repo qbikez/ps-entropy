@@ -441,8 +441,21 @@ function Request-Module {
             }
             catch {}
             if ($isFromSource) {
-                Write-Verbose "Module $_ was loaded from source: '$($removedModule.Path)'. Reloading from the same path."
-                Import-Module $removedModule.Path -DisableNameChecking -Global -Force -ErrorAction stop
+                # Path points at the root .psm1 even when loaded via manifest; prefer the manifest so ModuleVersion applies
+                $reloadPath = $removedModule.Path
+                $manifest = Join-Path $moduleDir "$($removedModule.Name).psd1"
+                if (Test-Path $manifest) { $reloadPath = $manifest }
+                Write-Verbose "Module $_ was loaded from source: '$reloadPath'. Reloading from the same path."
+                Import-Module $reloadPath -DisableNameChecking -Global -Force -ErrorAction stop
+                Write-Host "reloaded " -NoNewline
+                Write-Host $_ -ForegroundColor Cyan -NoNewline
+                $newVersion = (Get-Module $_).Version
+                $oldColor, $newColor = if ($newVersion -eq $removedModule.Version) { "Gray", "Gray" } else { "DarkYellow", "Green" }
+                Write-Host " $($removedModule.Version)" -ForegroundColor $oldColor -NoNewline
+                Write-Host " -> " -NoNewline
+                Write-Host "$newVersion" -ForegroundColor $newColor -NoNewline
+                Write-Host " from " -NoNewline
+                Write-Host $reloadPath -ForegroundColor DarkGray
                 continue
             }
         }
