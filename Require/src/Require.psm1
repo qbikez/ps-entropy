@@ -437,6 +437,17 @@ function Request-Module {
                 $isFromSource = ($gitCheck -eq "true")
             }
             catch {}
+            if ($isFromSource -and $original_version -eq "latest") {
+                $branch = git -C $moduleDir rev-parse --abbrev-ref HEAD 2>$null
+                Write-Verbose "Module $_ requested with version 'latest'. Running git pull on branch '$branch' in '$moduleDir'"
+                $pullOutput = git -C $moduleDir pull --ff-only 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "git pull failed in '$moduleDir' (exit code $LASTEXITCODE). Reloading the local version.`r`n$($pullOutput | Out-String)"
+                }
+                else {
+                    Write-Verbose ($pullOutput | Out-String)
+                }
+            }
             if ($isFromSource) {
                 Write-Verbose "Module $_ was loaded from source: '$($removedModule.Path)'. Reloading from the same path."
                 Import-Module $removedModule.Path -DisableNameChecking -Global -Force -ErrorAction stop
