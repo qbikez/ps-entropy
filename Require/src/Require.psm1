@@ -157,7 +157,7 @@ function Request-Module {
             if ($source.startswith("psgallery:")) {
                 $psrepository = $source.substring("psgallery:".Length)
             }
-            Write-Warning "trying powershellget package manager repository='$psrepository'"
+            Write-Warning "trying powershellget package manager source='$source' repository='$psrepository'"
             init-psget
             $islinked = $false
            
@@ -312,13 +312,16 @@ function Request-Module {
             }
    
             if ($mo -eq $null) { 
-                Write-Warning "failed to install module $name through oneget"
-                Write-Warning "available modules:"
+                Write-Warning "failed to install module $name through Install-Module"
+                Write-Warning "modules available locally:"
+                $local = Get-Module $name -ListAvailable -All | select ModuleType,Version,PreRelease,Name,PSEdition,Path,CompatiblePSEditions
+                $local
+                Write-Warning "modules available in PSGallery:"
                 $list = Find-Module $name
                 $list
             }
             elseif ($mo.Version[0] -lt $version -and $original_version -ne "latest") {
-                Write-Warning "modules found:"
+                Write-Warning "modules available in PSGallery:"
                 $m = Find-Module $name
                 $m | Format-Table | Out-String | Write-Warning                    
                 Write-Warning "sources:"
@@ -449,8 +452,21 @@ function Request-Module {
                 }
             }
             if ($isFromSource) {
-                Write-Verbose "Module $_ was loaded from source: '$($removedModule.Path)'. Reloading from the same path."
-                Import-Module $removedModule.Path -DisableNameChecking -Global -Force -ErrorAction stop
+                # Path points at the root .psm1 even when loaded via manifest; prefer the manifest so ModuleVersion applies
+                $reloadPath = $removedModule.Path
+                $manifest = Join-Path $moduleDir "$($removedModule.Name).psd1"
+                if (Test-Path $manifest) { $reloadPath = $manifest }
+                Write-Verbose "Module $_ was loaded from source: '$reloadPath'. Reloading from the same path."
+                Import-Module $reloadPath -DisableNameChecking -Global -Force -ErrorAction stop
+                Write-Host "reloaded " -NoNewline
+                Write-Host $_ -ForegroundColor Cyan -NoNewline
+                $newVersion = (Get-Module $_).Version
+                $oldColor, $newColor = if ($newVersion -eq $removedModule.Version) { "Gray", "Gray" } else { "DarkYellow", "Green" }
+                Write-Host " $($removedModule.Version)" -ForegroundColor $oldColor -NoNewline
+                Write-Host " -> " -NoNewline
+                Write-Host "$newVersion" -ForegroundColor $newColor -NoNewline
+                Write-Host " from " -NoNewline
+                Write-Host $reloadPath -ForegroundColor DarkGray
                 continue
             }
         }
