@@ -1,14 +1,16 @@
-import-module $psscriptroot\..\src\oneliners.psm1 -verbose
+BeforeAll {
+    import-module $psscriptroot\..\src\oneliners.psm1
+}
 
 Describe "oneliners module test" {
     
     It "Should load properly" {
-        { import-module "$psscriptroot\..\src\oneliners.psm1" -ErrorAction Stop } | should not throw
-        gmo oneliners | should not benullorempty
+        { import-module "$psscriptroot\..\src\oneliners.psm1" -ErrorAction Stop } | Should -Not -Throw
+        gmo oneliners | Should -Not -BeNullOrEmpty
     }
 }
 Describe "stack unit tests" {
-    It "pushed item should be on top of the stack" {
+    It "pushed item Should -Be on top of the stack" {
         $it1 = "item 1"
         $it2 = "item 2"
         remove-stack -stackname "test" -confirm:$false
@@ -16,14 +18,14 @@ Describe "stack unit tests" {
         push $it1 -stackname "test"
         
         $head = peek -stackname "test"
-        $head.value | Should Be $it1
-        $head.no | should be 1
+        $head.value | Should -Be $it1
+        $head.no | Should -Be 1
 
         push $it2 -stackname "test"
         
         $head = peek -stackname "test"
-        $head.value | Should Be $it2
-        $head.no | should be 2
+        $head.value | Should -Be $it2
+        $head.no | Should -Be 2
     }
 
     It "pop item should remove top item" {
@@ -38,9 +40,9 @@ Describe "stack unit tests" {
         pop -stackname "test"
         $s = stack -stackname "test"
         
-        $s.count | should be 2
-        $s[0].value | should be $it1
-        $s[1].value | should be $it2
+        $s.count | Should -Be 2
+        $s[0].value | Should -Be $it1
+        $s[1].value | Should -Be $it2
     }
 
      It "push-pop-push" {
@@ -52,20 +54,20 @@ Describe "stack unit tests" {
         push $it1 -stackname "test"
         
         $s = stack -stackname "test"
-        @($s).Length | should be 1
-        $s[0].value | should be $it1
+        @($s).Length | Should -Be 1
+        $s[0].value | Should -Be $it1
 
         pop -stackname "test"
         
         $s = stack -stackname "test"
-        $s | should BeNullOrEmpty
+        $s | Should -BeNullOrEmpty
 
         push $it3 -stackname "test"        
         
         $s = stack -stackname "test"        
-        @($s).count | should be 1
-        $s[0].value | should be $it3
-        $s[0].no | should be 1
+        @($s).count | Should -Be 1
+        $s[0].value | Should -Be $it3
+        $s[0].no | Should -Be 1
     }
 }
 
@@ -77,8 +79,8 @@ Describe "stack command" {
 
         $s = stack -stackname "test"
 
-        $s | should not BeNullOrEmpty
-        $s.length | should be 2
+        $s | Should -Not -BeNullOrEmpty
+        $s.length | Should -Be 2
     }
     It "'stack item' should push" {       
         remove-stack -stackname "test" -confirm:$false
@@ -87,8 +89,8 @@ Describe "stack command" {
 
         $s = stack -stackname "test"
 
-        $s | should not BeNullOrEmpty
-        $s.length | should be 2
+        $s | Should -Not -BeNullOrEmpty
+        $s.length | Should -Be 2
     }
 
     It "'stack psuh item' should push" {       
@@ -98,8 +100,8 @@ Describe "stack command" {
 
         $s = stack -stackname "test"
 
-        $s | should not BeNullOrEmpty
-        $s.length | should be 2
+        $s | Should -Not -BeNullOrEmpty
+        $s.length | Should -Be 2
     }
 
     It "'stack pop' should pop" {       
@@ -111,8 +113,8 @@ Describe "stack command" {
         $pop = stack pop -stackname "test"
 
         $s = stack -stackname "test"
-        $s | should not BeNullOrEmpty
-        $s.length | should be 2
+        $s | Should -Not -BeNullOrEmpty
+        $s.length | Should -Be 2
     }
     It "'stack search' should find items" {       
         remove-stack -stackname "test" -confirm:$false
@@ -122,10 +124,10 @@ Describe "stack command" {
 
         $f = stack -search "itemA" -stackname "test"
 
-        $f | should not BeNullOrEmpty
-        $f.length | should be 2
+        $f | Should -Not -BeNullOrEmpty
+        $f.length | Should -Be 2
 
         $f2 = stack -search "itemA" -stackname "test"
-        $f2.length | should be 2
+        $f2.length | Should -Be 2
     }
 }
