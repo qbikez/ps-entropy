@@ -2,7 +2,7 @@ param ($path = ".", [switch][bool]$EnableExit = $false, [switch][bool]$coverage=
 
 #$env:PSModulePath = [System.Environment]::GetEnvironmentVariable("PSModulePath", [System.EnvironmentVariableTarget]::User)
 
-import-module pester 
+import-module pester -MinimumVersion 4.4 -MaximumVersion 4.99
 
 $artifacts = "$path\artifacts"
 

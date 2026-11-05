@@ -1,5 +1,3 @@
-import-module pester
-
 if (gmo cache) { rmo cache -force }
 import-module $psscriptroot\..\src\cache.psm1 -verbose
 
