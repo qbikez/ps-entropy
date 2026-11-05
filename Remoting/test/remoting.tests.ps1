@@ -1,13 +1,19 @@
-if (gmo Remoting) {
-    rmo Remoting -force
+BeforeAll {
+    if (gmo Remoting) {
+        rmo Remoting -force
+    }
+
+    ipmo $PSScriptRoot\..\src\Remoting.psd1
+    $server = "docker/iis"
 }
 
-ipmo $PSScriptRoot\..\src\Remoting.psd1
-$server = "docker/iis"
-
 Describe "Remoting module tests" {
-    $target = "c:\test\"
-    It "should copy files recursively" -Pending {
+    BeforeAll {
+        $target = "c:\test\"
+    }
+
+    # needs a remote session to "docker/iis"
+    It "should copy files recursively" -Skip {
         $session = rps $server -noenter
         invoke-command -Session $session -scriptBlock { if (test-path $using:target) { rmdir $using:target -Recurse -force } }
 

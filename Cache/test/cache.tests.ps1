@@ -1,5 +1,7 @@
-if (gmo cache) { rmo cache -force }
-import-module $psscriptroot\..\src\cache.psm1 -verbose
+BeforeAll {
+    if (gmo cache) { rmo cache -force }
+    import-module $psscriptroot\..\src\cache.psm1
+}
 
 Describe "import/export cache" {
     It "should recall exported cache as string" {
@@ -7,7 +9,7 @@ Describe "import/export cache" {
         Cache\export-cache -data $data -container "test"
 
         $imported = Cache\import-cache -container "test"
-        $imported | Should Be $data
+        $imported | Should -Be $data
     }
 }
 
@@ -19,8 +21,8 @@ Describe "import/export settings" {
 
         $imported = Cache\import-settings -container $container 
 
-        $imported | Should Not BeNullOrEmpty
-        $imported["test1"] | Should Be $data
+        $imported | Should -Not -BeNullOrEmpty
+        $imported["test1"] | Should -Be $data
     }
 
     It "should get or create global password" {
@@ -28,7 +30,7 @@ Describe "import/export settings" {
         $pass = ConvertTo-SecureString -String "my-secret" -AsPlainText -Force
         cache\Set-GlobalPassword -container $container -password $pass
         $encKey = cache\_getenckey -container $container
-        $encKey | Should Not BeNullOrEmpty
+        $encKey | Should -Not -BeNullOrEmpty
     }
 
     It "should not ask for password if password is provided" {
@@ -44,14 +46,14 @@ Describe "import/export settings" {
 
         $imported = Cache\import-settings -password $pass -container $container
 
-        $imported | Should Not BeNullOrEmpty
+        $imported | Should -Not -BeNullOrEmpty
         $value = $imported["testsecure"]
-        $value | Should BeOfType [SecureString]
+        $value | Should -BeOfType [SecureString]
 
         $plain_expected = ConvertTo-PlainText $data
         $plain_value = ConvertTo-PlainText $value
 
-        $plain_value | Should Be $plain_expected        
+        $plain_value | Should -Be $plain_expected        
     }
 
     It "should recall exported secure settings" {
@@ -63,14 +65,14 @@ Describe "import/export settings" {
 
         $imported = Cache\import-settings -password $pass -container "test"
 
-        $imported | Should Not BeNullOrEmpty
+        $imported | Should -Not -BeNullOrEmpty
         $value = $imported["testsecure"]
-        $value | Should BeOfType [SecureString]
+        $value | Should -BeOfType [SecureString]
 
         $plain_expected = ConvertTo-PlainText $data
         $plain_value = ConvertTo-PlainText $value
 
-        $plain_value | Should Be $plain_expected        
+        $plain_value | Should -Be $plain_expected        
     }
 
     It "updating password should not destroy encrypted values" {
@@ -88,14 +90,14 @@ Describe "import/export settings" {
 
         $imported = Cache\import-settings  -container  $container
 
-        $imported | Should Not BeNullOrEmpty
+        $imported | Should -Not -BeNullOrEmpty
         $value = $imported["testsecure"]
-        $value | Should BeOfType [SecureString]
+        $value | Should -BeOfType [SecureString]
 
         $plain_expected = ConvertTo-PlainText $data
         $plain_value = ConvertTo-PlainText $value
 
-        $plain_value | Should Be $plain_expected
+        $plain_value | Should -Be $plain_expected
     }
 }
 

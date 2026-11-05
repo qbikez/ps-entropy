@@ -1,5 +1,7 @@
-if (gmo require) { rmo require -force }
-import-module $psscriptroot\..\src\require.psm1 -verbose
+BeforeAll {
+    if (gmo require) { rmo require -force }
+    import-module $psscriptroot\..\src\require.psm1
+}
 
 Describe "require module test" {
     It "Should load required module" {
@@ -7,7 +9,7 @@ Describe "require module test" {
         if ((gmo $module) -ne $null) { rmo $module -force }
         req $module
         $m = gmo $module
-        $m | Should Not benullorempty
+        $m | Should -Not -BeNullOrEmpty
     }
 
    It "Should load required module from choco" {
@@ -19,10 +21,10 @@ Describe "require module test" {
             if ((gmo $module) -ne $null) { rmo $module }
             req $module -version $version -source choco -package $package
 
-            gmo $module | Should Not benullorempty
-            test-path "{$env:ProgramFiles}\WindowsPowerShell\Modules\carbon\" | Should Not BeNullOrEmpty            
+            gmo $module | Should -Not -BeNullOrEmpty
+            test-path "{$env:ProgramFiles}\WindowsPowerShell\Modules\carbon\" | Should -Not -BeNullOrEmpty            
         #} catch {
-            #Set-TestInconclusive -Message "something's wrong with pscx install from choco"
+            #Set-ItResult -Inconclusive -Because "something's wrong with pscx install from choco"
         #}
     }
     It "Should try to upgrade module from choco if requested version is higher than current" {
@@ -41,7 +43,7 @@ Describe "require module test" {
                 }
             }
         } catch {
-            Set-TestInconclusive -Message "something's wrong with carbon install from choco"
+            Set-ItResult -Inconclusive -Because "something's wrong with carbon install from choco"
         }
         # ok, at least we tried
     }
